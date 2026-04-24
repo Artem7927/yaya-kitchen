@@ -1,0 +1,428 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+<title>YaYa Chicken · Кухня</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Bebas+Neue&family=Nunito:wght@600;700;800;900&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --orange: #F4821F;
+    --orange-dark: #c96200;
+    --bg: #0a0a0a;
+    --card-bg: #161616;
+    --border: #252525;
+    --text: #f0f0f0;
+    --text2: #777;
+    --green: #22c55e;
+    --yellow: #fbbf24;
+    --red: #ef4444;
+    --radius: 18px;
+  }
+  * { box-sizing:border-box; margin:0; padding:0; -webkit-tap-highlight-color:transparent; }
+  body {
+    font-family:'Nunito',sans-serif; background:var(--bg); color:var(--text);
+    min-height:100vh; overflow-x:hidden; touch-action:manipulation;
+  }
+
+  /* HEADER */
+  .header {
+    background:#0f0f0f; border-bottom:2px solid #1e1e1e;
+    padding:10px 18px; display:flex; align-items:center;
+    justify-content:space-between; position:sticky; top:0; z-index:200;
+  }
+  .logo { font-family:'Bebas Neue',sans-serif; font-size:26px; color:var(--orange); letter-spacing:2px; }
+  .logo span { color:#444; }
+  .header-center { display:flex; align-items:center; gap:6px; flex-wrap:wrap; }
+  .total-chip { font-size:12px; font-weight:800; padding:3px 9px; border-radius:20px; border:1.5px solid; }
+  .chip-new  { color:var(--orange); border-color:var(--orange); background:rgba(244,130,31,.12); }
+  .chip-cook { color:var(--yellow); border-color:var(--yellow); background:rgba(251,191,36,.12); }
+  .chip-done { color:var(--green);  border-color:var(--green);  background:rgba(34,197,94,.12); }
+  .header-right { display:flex; align-items:center; gap:12px; }
+  .sound-btn { background:none; border:1.5px solid #333; color:#666; padding:5px 9px; border-radius:8px; font-size:14px; cursor:pointer; }
+  .sound-btn.on { border-color:var(--green); color:var(--green); }
+  .status-dot { width:9px; height:9px; border-radius:50%; background:var(--green); animation:blink 2s infinite; }
+  .status-dot.offline { background:#444; animation:none; }
+  @keyframes blink { 0%,100%{opacity:1} 50%{opacity:.25} }
+  .clock { font-family:'Bebas Neue',sans-serif; font-size:24px; color:#555; letter-spacing:2px; }
+
+  /* COLUMNS */
+  .columns { display:grid; grid-template-columns:1fr 1fr; min-height:calc(100vh - 58px); }
+  .column { padding:12px 10px; border-right:1px solid #1a1a1a; }
+  .column:last-child { border-right:none; }
+  .column-header { display:flex; align-items:center; gap:8px; margin-bottom:10px; padding-bottom:8px; border-bottom:1px solid #1e1e1e; }
+  .column-title { font-family:'Bebas Neue',sans-serif; font-size:20px; letter-spacing:1.5px; }
+  .column-count { background:#222; color:#555; font-size:12px; font-weight:800; padding:2px 7px; border-radius:20px; }
+
+  /* CARD */
+  .order-card {
+    border:2.5px solid var(--border); border-radius:var(--radius);
+    margin-bottom:10px; overflow:hidden;
+    transition:border-color .35s, background .35s, box-shadow .35s, transform .25s;
+    animation:slideIn .25s ease; cursor:pointer; user-select:none;
+    background:var(--card-bg); position:relative;
+    transform-origin: top left;
+  }
+  @keyframes slideIn { from{opacity:0;transform:translateY(-10px)} to{opacity:1;transform:translateY(0)} }
+  .order-card:active:not(.expanded) { transform:scale(.983); }
+
+  /* цвет карточки по таймеру */
+  .order-card.t-green  { border-color:#1a4a2a; background:#0d1f12; }
+  .order-card.t-yellow { border-color:#4a3a00; background:#1a1400; }
+  .order-card.t-red    { border-color:#4a1010; background:#1a0808; box-shadow:0 0 18px rgba(239,68,68,.28); }
+  .order-card.t-red.cooking { animation:urgentPulse 1.6s infinite; }
+  @keyframes urgentPulse { 0%,100%{box-shadow:0 0 8px rgba(239,68,68,.2)} 50%{box-shadow:0 0 30px rgba(239,68,68,.6)} }
+  .order-card.done { border-color:#1a3a1a !important; background:#0a140a !important; box-shadow:none !important; animation:none !important; opacity:.6; }
+
+  /* EXPANDED — увеличиваем в 2 раза через scale */
+  .order-card.expanded {
+    transform: scale(2) !important;
+    transform-origin: top left;
+    z-index: 50;
+    margin-bottom: calc(100% + 10px) !important;
+  }
+
+  .card-footer { display:block; }
+
+  /* TOP */
+  .card-top { display:flex; align-items:center; padding:11px 13px 7px; gap:10px; }
+  .order-num {
+    font-family:'Bebas Neue',sans-serif; font-size:46px; line-height:1;
+    flex-shrink:0; letter-spacing:0; color:var(--orange);
+    transition:color .35s;
+  }
+  .order-card.t-yellow .order-num { color:var(--yellow); }
+  .order-card.t-red    .order-num { color:var(--red); }
+  .order-card.done     .order-num { color:var(--green); }
+  .order-meta { flex:1; min-width:0; }
+  .order-time { font-size:11px; font-weight:700; color:#555; margin-bottom:2px; }
+  .order-timer {
+    display:inline-flex; align-items:center; gap:4px;
+    font-family:'Bebas Neue',sans-serif; font-size:24px; letter-spacing:1px;
+    transition:color .35s;
+  }
+  .order-timer.tc-green  { color:var(--green); }
+  .order-timer.tc-yellow { color:var(--yellow); }
+  .order-timer.tc-red    { color:var(--red); }
+  .order-timer.tc-done   { color:#444; font-size:16px; }
+  .timer-dot { font-size:13px; }
+  .order-source { font-size:10px; font-weight:700; color:#444; padding:2px 6px; border:1px solid #282828; border-radius:8px; flex-shrink:0; }
+
+  /* ITEMS */
+  .card-items { padding:0 13px 8px; display:flex; flex-direction:column; gap:5px; }
+  .card-item { display:flex; justify-content:space-between; align-items:flex-start; gap:8px; }
+  .item-name-wrap { flex:1; min-width:0; }
+  .item-name { font-size:15px; font-weight:800; color:var(--text); line-height:1.25; }
+  .item-desc { font-size:11px; font-weight:600; color:#555; line-height:1.3; margin-top:1px; }
+  .item-qty {
+    font-family:'Bebas Neue',sans-serif; font-size:24px; line-height:1;
+    color:var(--orange); flex-shrink:0; min-width:28px; text-align:right;
+    transition:color .35s;
+  }
+  .order-card.t-yellow .item-qty { color:var(--yellow); }
+  .order-card.t-red    .item-qty { color:var(--red); }
+  .order-card.done     .item-qty { color:var(--green); }
+
+  /* FOOTER */
+  .card-address { padding:7px 13px; border-top:1px solid #1e1e1e; font-size:12px; font-weight:700; color:#888; line-height:1.4; }
+  .card-comment { padding:6px 13px; font-size:12px; font-weight:700; color:#b08040; background:#131000; border-top:1px solid #1e1800; }
+  .card-btn-wrap { padding:10px 12px 14px; display:flex; gap:8px; }
+  .card-btn {
+    flex:1; padding:16px 8px; border:none; border-radius:14px;
+    font-family:'Nunito',sans-serif; font-size:16px; font-weight:900;
+    cursor:pointer; transition:all .1s; min-height:56px;
+  }
+  .card-btn:active { transform:scale(.95); }
+  .btn-start { background:var(--orange); color:white; }
+  .btn-done  { background:var(--green);  color:white; }
+
+  /* EMPTY */
+  .empty { display:flex; flex-direction:column; align-items:center; justify-content:center; padding:50px 20px; color:#333; gap:10px; }
+  .empty-icon { font-size:40px; opacity:.3; }
+  .empty-text { font-size:14px; font-weight:700; }
+
+  /* TOAST */
+  .toast {
+    position:fixed; top:68px; right:14px;
+    background:var(--orange); color:white;
+    padding:11px 16px; border-radius:12px; font-size:14px; font-weight:800;
+    z-index:9999; animation:toastIn .25s ease; box-shadow:0 4px 20px rgba(244,130,31,.5);
+    pointer-events:none;
+  }
+  .toast.urgent { background:var(--red); box-shadow:0 4px 20px rgba(239,68,68,.5); }
+  @keyframes toastIn { from{opacity:0;transform:translateX(20px)} to{opacity:1;transform:translateX(0)} }
+</style>
+</head>
+<body>
+
+<div class="header">
+  <div class="logo">YaYa <span>KITCHEN</span></div>
+  <div class="header-center" id="totals"></div>
+  <div class="header-right">
+    <button class="sound-btn on" id="soundBtn" onclick="toggleSound()">🔔</button>
+    <div class="status-dot" id="statusDot"></div>
+    <div class="clock" id="clock">00:00</div>
+  </div>
+</div>
+
+<div class="columns">
+  <div class="column">
+    <div class="column-header">
+      <div class="column-title" style="color:var(--yellow)">🔥 В работе</div>
+      <div class="column-count" id="count-active">0</div>
+    </div>
+    <div id="col-active"></div>
+  </div>
+  <div class="column">
+    <div class="column-header">
+      <div class="column-title" style="color:var(--green)">✅ Готово</div>
+      <div class="column-count" id="count-done">0</div>
+    </div>
+    <div id="col-done"></div>
+  </div>
+</div>
+
+<script>
+const SERVER  = 'https://bonded-ditch-divisible.ngrok-free.dev';
+const T_GREEN  = 20; // мин до жёлтого
+const T_YELLOW = 35; // мин до красного
+
+let orders        = [];
+let prevIds       = new Set();
+let expandedIds   = new Set();
+let urgentAlerted = new Set();
+let soundEnabled  = true;
+let audioCtx      = null;
+let lastHash      = '';
+
+// ── Audio ──────────────────────────────────────────────────────────────
+function initAudio() {
+  if (!audioCtx) audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+}
+function beep(freq, dur, gain) {
+  if (!soundEnabled) return;
+  try {
+    initAudio();
+    const o = audioCtx.createOscillator(), g = audioCtx.createGain();
+    o.connect(g); g.connect(audioCtx.destination);
+    o.frequency.value = freq; o.type = 'sine';
+    g.gain.setValueAtTime(gain, audioCtx.currentTime);
+    g.gain.exponentialRampToValueAtTime(.001, audioCtx.currentTime + dur);
+    o.start(); o.stop(audioCtx.currentTime + dur);
+  } catch(e) {}
+}
+function playNew()    { beep(660,.12,.5); setTimeout(()=>beep(780,.12,.5),140); setTimeout(()=>beep(940,.22,.5),280); }
+function playOk()     { beep(880,.15,.4); }
+function playUrgent() { beep(880,.15,.6); setTimeout(()=>beep(660,.15,.6),200); setTimeout(()=>beep(440,.3,.6),400); }
+function toggleSound() {
+  soundEnabled = !soundEnabled;
+  const b = document.getElementById('soundBtn');
+  b.textContent = soundEnabled ? '🔔' : '🔕';
+  b.className   = 'sound-btn' + (soundEnabled ? ' on' : '');
+}
+
+// ── Toast ──────────────────────────────────────────────────────────────
+function toast(msg, urgent) {
+  const el = document.createElement('div');
+  el.className = 'toast' + (urgent ? ' urgent' : '');
+  el.textContent = msg;
+  document.body.appendChild(el);
+  setTimeout(() => el.remove(), 3200);
+}
+
+// ── Clock ──────────────────────────────────────────────────────────────
+setInterval(() => {
+  const n = new Date();
+  document.getElementById('clock').textContent =
+    String(n.getHours()).padStart(2,'0') + ':' + String(n.getMinutes()).padStart(2,'0');
+}, 1000);
+(function(){ const n=new Date(); document.getElementById('clock').textContent=String(n.getHours()).padStart(2,'0')+':'+String(n.getMinutes()).padStart(2,'0'); })();
+
+// ── Timer helpers ──────────────────────────────────────────────────────
+function mins(ts)  { return (Date.now() - ts) / 60000; }
+function tcClass(ts, done) {
+  if (done) return 'tc-done';
+  const m = mins(ts);
+  return m < T_GREEN ? 'tc-green' : m < T_YELLOW ? 'tc-yellow' : 'tc-red';
+}
+function cardClass(ts, done) {
+  if (done) return '';
+  const m = mins(ts);
+  return m < T_GREEN ? 't-green' : m < T_YELLOW ? 't-yellow' : 't-red';
+}
+function dot(tc) {
+  return tc==='tc-green' ? '🟢' : tc==='tc-yellow' ? '🟡' : tc==='tc-red' ? '🔴' : '✅';
+}
+function fmtElapsed(ts) {
+  const d = Math.floor((Date.now()-ts)/1000);
+  if (d < 60) return d + ' сек';
+  return Math.floor(d/60) + ':' + String(d%60).padStart(2,'0');
+}
+function fmtTime(ts) {
+  return new Date(ts).toLocaleTimeString('ru',{hour:'2-digit',minute:'2-digit'});
+}
+
+// ── Fetch ──────────────────────────────────────────────────────────────
+async function fetchOrders() {
+  try {
+    const r = await fetch(`${SERVER}/kitchen`, { cache:'no-store', headers:{'ngrok-skip-browser-warning':'1'} });
+    if (!r.ok) throw 0;
+    const data = await r.json();
+    document.getElementById('statusDot').className = 'status-dot';
+    const newOrders = data.orders || [];
+    const newIds = new Set(newOrders.map(o=>o.id));
+
+    let hasNew = false;
+    for (const o of newOrders) {
+      if (!prevIds.has(o.id) && o.status==='new') { hasNew=true; expandedIds.add(o.id); }
+    }
+    if (hasNew && prevIds.size > 0) { playNew(); toast('🍗 Новый заказ!'); }
+    prevIds = newIds;
+
+    const hash = JSON.stringify(newOrders.map(o=>({id:o.id,status:o.status})));
+    if (hash === lastHash) return;
+    lastHash = hash;
+    orders = newOrders;
+    render();
+  } catch(e) {
+    document.getElementById('statusDot').className = 'status-dot offline';
+  }
+}
+
+// ── Status ─────────────────────────────────────────────────────────────
+async function setStatus(id, status, e) {
+  if (e) { e.stopPropagation(); e.preventDefault(); }
+  initAudio(); playOk();
+  const o = orders.find(x=>x.id===id);
+  if (o) { o.status=status; lastHash=''; render(); }
+  try {
+    await fetch(`${SERVER}/kitchen/status`, {
+      method:'POST',
+      headers:{'Content-Type':'application/json','ngrok-skip-browser-warning':'1'},
+      body: JSON.stringify({id, status})
+    });
+  } catch(e){}
+}
+
+// ── Toggle expand ──────────────────────────────────────────────────────
+function toggleExpand(id, e) {
+  // Не раскрываем если тапнули по кнопке
+  if (e && e.target && e.target.classList.contains('card-btn')) return;
+  initAudio(); beep(440,.05,.12);
+  if (expandedIds.has(id)) expandedIds.delete(id);
+  else expandedIds.add(id);
+  const card = document.getElementById('card-'+id);
+  if (card) card.classList.toggle('expanded', expandedIds.has(id));
+}
+
+// ── Render card ────────────────────────────────────────────────────────
+function renderCard(o) {
+  const done = o.status === 'done';
+  const exp  = expandedIds.has(o.id);
+  const tc   = tcClass(o.created_at, done);
+  const cc   = cardClass(o.created_at, done);
+  const num  = String(o.num).padStart(3,'0');
+  const src  = o.source === 'webapp' ? 'Прил.' : 'Бот';
+
+  const items = o.items.map(i=>`
+    <div class="card-item">
+      <div class="item-name-wrap">
+        <div class="item-name">${i.name}</div>
+        ${i.desc ? `<div class="item-desc">${i.desc}</div>` : ''}
+      </div>
+      <div class="item-qty">${i.qty}</div>
+    </div>`).join('');
+
+  const addr    = o.address ? `<div class="card-address">📍 ${o.address}</div>` : '';
+  const comment = o.comment ? `<div class="card-comment">💬 ${o.comment}</div>` : '';
+
+  let btn = '';
+  if (o.status==='new')     btn = `<div class="card-btn-wrap"><button class="card-btn btn-start" onclick="setStatus('${o.id}','cooking',event)">🔥 Начать готовить</button></div>`;
+  if (o.status==='cooking') btn = `<div class="card-btn-wrap"><button class="card-btn btn-done"  onclick="setStatus('${o.id}','done',event)">✅ Готово — курьер едет!</button></div>`;
+
+  return `
+    <div class="order-card ${cc} ${done?'done':''} ${o.status==='cooking'?'cooking':''} ${exp?'expanded':''}"
+         id="card-${o.id}"
+         onclick="toggleExpand('${o.id}',event)">
+      <div class="card-top">
+        <div class="order-num">№${num}</div>
+        <div class="order-meta">
+          <div class="order-time">⏰ ${fmtTime(o.created_at)}</div>
+          <div class="order-timer ${tc}" id="timer-${o.id}">
+            <span class="timer-dot" id="tdot-${o.id}">${dot(tc)}</span>
+            <span id="elapsed-${o.id}">${fmtElapsed(o.created_at)}</span>
+          </div>
+        </div>
+        <div class="order-source">${src}</div>
+      </div>
+      <div class="card-items">${items}</div>
+      ${addr}${comment}
+      ${btn}
+    </div>`;
+}
+
+// ── Render all ─────────────────────────────────────────────────────────
+function render() {
+  const active = orders.filter(o=>o.status!=='done');
+  const done   = orders.filter(o=>o.status==='done');
+  const nC=orders.filter(o=>o.status==='new').length;
+  const cC=orders.filter(o=>o.status==='cooking').length;
+  const dC=done.length;
+
+  document.getElementById('totals').innerHTML=[
+    nC>0?`<div class="total-chip chip-new">Новых: ${nC}</div>`:'',
+    cC>0?`<div class="total-chip chip-cook">Готовятся: ${cC}</div>`:'',
+    dC>0?`<div class="total-chip chip-done">Готово: ${dC}</div>`:'',
+  ].join('');
+
+  document.getElementById('count-active').textContent = active.length;
+  document.getElementById('count-done').textContent   = done.length;
+
+  document.getElementById('col-active').innerHTML = active.length
+    ? active.map(renderCard).join('')
+    : `<div class="empty"><div class="empty-icon">🍽</div><div class="empty-text">Нет активных заказов</div></div>`;
+
+  document.getElementById('col-done').innerHTML = done.length
+    ? done.map(renderCard).join('')
+    : `<div class="empty"><div class="empty-icon">✅</div><div class="empty-text">Выданных заказов нет</div></div>`;
+}
+
+// ── Live timers (каждую секунду, без перерисовки) ──────────────────────
+setInterval(() => {
+  orders.forEach(o => {
+    if (o.status === 'done') return;
+    const el    = document.getElementById('elapsed-'+o.id);
+    const tEl   = document.getElementById('timer-'+o.id);
+    const dotEl = document.getElementById('tdot-'+o.id);
+    const card  = document.getElementById('card-'+o.id);
+    if (!el) return;
+
+    el.textContent = fmtElapsed(o.created_at);
+    const tc = tcClass(o.created_at, false);
+    const cc = cardClass(o.created_at, false);
+
+    if (tEl) tEl.className = 'order-timer ' + tc;
+    if (dotEl) dotEl.textContent = dot(tc);
+
+    if (card) {
+      card.classList.remove('t-green','t-yellow','t-red');
+      if (cc) card.classList.add(cc);
+    }
+
+    // Тревога при жёлтой зоне
+    if (mins(o.created_at) >= T_YELLOW && !urgentAlerted.has(o.id)) {
+      urgentAlerted.add(o.id);
+      playUrgent();
+      toast(`⚠️ Заказ №${String(o.num).padStart(3,'0')} — поторопитесь!`, true);
+    }
+  });
+}, 1000);
+
+// ── Go ─────────────────────────────────────────────────────────────────
+fetchOrders();
+setInterval(fetchOrders, 5000);
+</script>
+</body>
+</html>
