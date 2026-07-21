@@ -562,7 +562,7 @@ function handleSearch(q){
 /* ── Мои заказы: живой статус с сервера + карта курьера ── */
 const TRACK_API='https://yaya-db-production.up.railway.app';
 const T_POS='yaya_courier_pos', T_COUR='yaya_order_couriers';
-const REST={lat:51.7294,lng:75.3220,name:'YaYa Chicken'};   /* совпадает с админкой */
+const REST={lat:51.726458,lng:75.318556,name:'YaYa Chicken'};   /* совпадает с админкой */
 const STEP_LABELS=['Принят','Готовится','Готов','В пути','Доставлен'];
 let ordTimer=null, trackMaps={}, trackCourMk={}, trackSig='';
 
@@ -591,6 +591,15 @@ let ordTimer=null, trackMaps={}, trackCourMk={}, trackSig='';
 .track-note{font-size:12px;color:var(--text2);font-weight:700;margin-top:8px;text-align:center}
 .cmk2{width:34px;height:34px;border-radius:50%;border:3px solid var(--gold);display:flex;align-items:center;justify-content:center;font:900 13px Nunito;color:#1a1400;background:radial-gradient(circle at 35% 30%,#FFD860,var(--gold) 60%,#D99A00);box-shadow:0 3px 10px rgba(0,0,0,.5)}
 .rmk2{width:30px;height:30px;border-radius:9px;border:2px solid #fff;display:flex;align-items:center;justify-content:center;font:900 9px Nunito;color:#3a2b00;background:var(--gold)}
+.track-av-mk{width:40px;height:40px;border-radius:50%;border:3px solid var(--gold);overflow:hidden;box-shadow:0 3px 12px rgba(0,0,0,.6)}
+.track-av-mk img{width:100%;height:100%;object-fit:cover}
+.track-cafe-mk{width:36px;height:36px;border-radius:50%;border:3px solid #fff;display:flex;align-items:center;justify-content:center;font:900 8px Nunito;color:#3a2b00;background:radial-gradient(circle at 35% 30%,#FFD860,var(--gold) 60%,#D99A00);box-shadow:0 3px 14px rgba(244,180,0,.4);position:relative}
+.track-cafe-mk::after{content:'';position:absolute;top:-6px;right:-6px;width:12px;height:12px;background:url("data:image/svg+xml,%3Csvg viewBox='0 0 24 24' xmlns='http://www.w3.org/2000/svg'%3E%3Cpath d='M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z' fill='%23F4B400'/%3E%3C/svg%3E") center/contain no-repeat}
+#fullscreenMap{position:fixed;top:0;left:0;width:100vw;height:100vh;z-index:9999;background:#000;display:none;flex-direction:column}
+#fullscreenMap.active{display:flex}
+#fullscreenMap .fs-close{position:absolute;top:12px;right:12px;z-index:10000;width:40px;height:40px;border-radius:50%;background:rgba(0,0,0,.6);border:1px solid rgba(255,255,255,.15);display:flex;align-items:center;justify-content:center;cursor:pointer}
+#fullscreenMap .fs-close svg{width:22px;height:22px;fill:none;stroke:#fff;stroke-width:2;stroke-linecap:round}
+#fullscreenMap .fs-body{flex:1;min-height:0}
 `;document.head.appendChild(s);})();
 
 function trackFetch(url,ms){ms=ms||9000;const c=new AbortController();const t=setTimeout(()=>c.abort(),ms);
@@ -668,15 +677,17 @@ function initTrack(v,pos){
   const p=pos[v.courier];
   const map=L.map(el,{zoomControl:false,attributionControl:false}).setView([REST.lat,REST.lng],14);
   L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png',{maxZoom:19}).addTo(map);
-  L.marker([REST.lat,REST.lng],{icon:L.divIcon({className:'',html:'<div class="rmk2">YaYa</div>',iconSize:[30,30],iconAnchor:[15,15]})}).addTo(map);
+  L.marker([REST.lat,REST.lng],{icon:L.divIcon({className:'',html:'<div class="track-cafe-mk">YaYa</div>',iconSize:[36,36],iconAnchor:[18,18]})}).addTo(map);
   trackMaps[v.num]=map;
   const note=document.getElementById('tn-'+v.num);
   if(p&&typeof p.lat==='number'){
-    const mk=L.marker([p.lat,p.lng],{icon:L.divIcon({className:'',html:`<div class="cmk2">${(v.courier[0]||'К').toUpperCase()}</div>`,iconSize:[34,34],iconAnchor:[17,17]})}).addTo(map);
+    const mk=L.marker([p.lat,p.lng],{icon:L.divIcon({className:'',html:'<div class="track-av-mk"><img src="avatar.png"></div>',iconSize:[40,40],iconAnchor:[20,20]})}).addTo(map);
     trackCourMk[v.num]=mk;
     map.fitBounds(L.latLngBounds([[REST.lat,REST.lng],[p.lat,p.lng]]).pad(0.4));
     if(note)note.textContent='';
   } else { if(note)note.textContent='Курьер выехал. Он появится на карте, как только включит навигацию.'; }
+  el.style.cursor='pointer';
+  el.onclick=()=>openFsTrack(v,pos);
   setTimeout(()=>map.invalidateSize(),150);
 }
 function updateTrack(v,pos){
@@ -756,6 +767,41 @@ function applyRadioUI(){
     :'<svg viewBox="0 0 24 24"><use href="#ic-volume"/></svg>';
 }
 applyRadioUI();
+
+/* ── Fullscreen track map ── */
+let fsMap=null,fsTrackLayers=null;
+function openFsTrack(v,pos){
+  let d=document.getElementById('fullscreenMap');
+  if(!d){
+    d=document.createElement('div');
+    d.id='fullscreenMap';
+    d.innerHTML='<div class="fs-close" onclick="closeFsTrack()"><svg viewBox="0 0 24 24"><path d="M18 6 6 18M6 6l12 12"/></svg></div><div class="fs-body" id="fsMapBody"></div>';
+    document.body.appendChild(d);
+  }
+  d.classList.add('active');
+  const body=document.getElementById('fsMapBody');
+  setTimeout(()=>{
+    if(fsMap){fsMap.remove();fsMap=null;}
+    fsMap=L.map('fsMapBody',{zoomControl:false,attributionControl:false}).setView([REST.lat,REST.lng],14);
+    L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png',{maxZoom:19}).addTo(fsMap);
+    L.marker([REST.lat,REST.lng],{
+      icon:L.divIcon({className:'',html:'<div class="track-cafe-mk">YaYa</div>',iconSize:[36,36],iconAnchor:[18,18]})
+    }).addTo(fsMap);
+    const p=pos[v.courier];
+    if(p&&typeof p.lat==='number'){
+      L.marker([p.lat,p.lng],{
+        icon:L.divIcon({className:'',html:'<div class="track-av-mk"><img src="avatar.png"></div>',iconSize:[40,40],iconAnchor:[20,20]})
+      }).addTo(fsMap);
+      fsMap.fitBounds(L.latLngBounds([[REST.lat,REST.lng],[p.lat,p.lng]]).pad(0.3));
+    }
+    setTimeout(()=>fsMap.invalidateSize(),200);
+  },100);
+}
+function closeFsTrack(){
+  const d=document.getElementById('fullscreenMap');
+  if(d)d.classList.remove('active');
+  if(fsMap){setTimeout(()=>{fsMap.remove();fsMap=null;},300);}
+}
 
 /* PWA */
 if("serviceWorker" in navigator){window.addEventListener("load",function(){navigator.serviceWorker.register("sw.js").catch(function(){});});}
