@@ -1,0 +1,764 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<title>YaYa Chicken</title>
+<link rel="manifest" href="manifest.json">
+<meta name="theme-color" content="#0F0E0C">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="YaYa Chicken">
+<link rel="apple-touch-icon" href="icon-vitrina-192.png">
+<link rel="icon" href="icon-vitrina-192.png">
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.css"/>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.js"></script>
+<style>
+@import url('https://fonts.googleapis.com/css2?family=Bebas+Neue&family=Nunito:wght@400;600;700;800;900&display=swap');
+
+:root{
+  --bg:#0F0E0C;--panel:#181715;--panel2:#232120;--elev:#2A2724;
+  --gold:#F4B400;--gold-d:#D99A00;--orange:#F4B400;
+  --text:#F2EFE8;--text2:#A6A197;--muted:#6E6A60;
+  --border:rgba(255,255,255,.08);--border2:rgba(255,255,255,.14);
+  --gray:#232120;--gray2:#3A3632;--red:#F4B400;--ok:#3ecf8e;
+}
+*{box-sizing:border-box;margin:0;padding:0}
+html,body{background:var(--bg);color:var(--text);font-family:Nunito,system-ui,sans-serif;-webkit-tap-highlight-color:transparent}
+body{max-width:480px;margin:0 auto;min-height:100vh;padding-bottom:76px;overflow-x:hidden}
+.screen{display:none;animation:fade .25s ease}
+.screen.active{display:block}
+@keyframes fade{from{opacity:0;transform:translateY(6px)}to{opacity:1;transform:none}}
+@keyframes pop{0%{transform:scale(.6)}100%{transform:scale(1)}}
+
+/* Шапка */
+.header{position:sticky;top:0;z-index:50;background:rgba(15,14,12,.9);backdrop-filter:blur(16px);
+  border-bottom:1px solid var(--border);padding:12px 14px;display:flex;align-items:center;justify-content:space-between;gap:10px}
+.brand-row{display:flex;align-items:center;gap:10px;min-width:0}
+.brand-mark{width:38px;height:38px;border-radius:10px;object-fit:cover;background:#000;flex:none}
+.logo{font-family:'Bebas Neue',sans-serif;font-size:25px;letter-spacing:1px;line-height:1;color:var(--text)}
+.logo span{color:var(--gold)}
+.header-sub{font-size:10px;color:var(--text2);font-weight:800;letter-spacing:.3px;margin-top:2px}
+.back-btn{background:var(--panel2);border:1px solid var(--border);color:var(--text);padding:8px 14px;border-radius:11px;font:800 13px Nunito,sans-serif;cursor:pointer}
+.h-title{font-family:'Bebas Neue',sans-serif;font-size:22px;letter-spacing:1px;color:var(--text)}
+
+/* Радио-пилюля (верх справа) */
+.radio{display:flex;align-items:center;background:var(--panel2);border:1px solid var(--border);border-radius:999px;overflow:hidden;flex:none}
+.radio-main{display:flex;align-items:center;gap:9px;background:transparent;border:none;color:var(--text2);font-family:inherit;padding:8px 12px;cursor:pointer}
+.radio-text{display:flex;flex-direction:column;align-items:flex-start;line-height:1;gap:2px}
+.radio-text b{font-size:8px;font-weight:800;letter-spacing:1.6px;color:var(--text2)}
+.radio.on .radio-text b{color:var(--gold)}
+.radio-text i{font-family:'Bebas Neue',sans-serif;font-size:17px;letter-spacing:1px;font-style:normal;color:#cfccc6;line-height:.95}
+.radio.on .radio-text i{color:#fff}
+.radio-eq{display:inline-flex;align-items:flex-end;gap:2px;height:15px;color:var(--text2)}
+.radio.on .radio-eq{color:var(--gold)}
+.radio-eq i{width:3px;height:5px;background:currentColor;border-radius:2px}
+.radio.on .radio-eq i{animation:eqbar .9s ease-in-out infinite}
+.radio.on .radio-eq i:nth-child(2){animation-delay:.18s}.radio.on .radio-eq i:nth-child(3){animation-delay:.34s}
+@keyframes eqbar{0%,100%{height:4px}50%{height:15px}}
+.radio-mute{display:none;align-items:center;justify-content:center;background:transparent;border:none;border-left:1px solid var(--border);color:#cfccc6;padding:8px 11px;cursor:pointer}
+.radio-mute svg{width:18px;height:18px;display:block;fill:currentColor}
+.radio.on .radio-mute{display:flex}
+.radio.on.muted .radio-mute{color:#666}
+#ytRadio{position:fixed;width:1px;height:1px;left:-9999px;top:-9999px;opacity:0;pointer-events:none}
+
+/* HERO баннер */
+.hero{margin:14px 16px 14px;border-radius:20px;overflow:hidden;cursor:pointer;position:relative;border:1px solid var(--border)}
+.hero img{display:block;width:100%;height:auto}
+.hero-tag{font-size:11px;font-weight:800;letter-spacing:2.5px;color:#3a2600;text-transform:uppercase;margin-bottom:8px}
+.hero h1{font-family:'Bebas Neue',sans-serif;font-size:32px;line-height:1.02;color:#1a1200;margin-bottom:8px}
+.hero p{font-size:13px;color:rgba(30,18,0,.85);font-weight:700;margin-bottom:14px;line-height:1.4;max-width:82%}
+.hero-meta{display:flex;gap:8px;flex-wrap:wrap;margin-bottom:16px}
+.hero-chip{background:rgba(0,0,0,.16);border-radius:12px;padding:7px 11px;font-size:11px;font-weight:800;color:#1a1200;display:flex;align-items:center;gap:6px}
+.hero-chip svg{width:14px;height:14px;fill:#1a1200}
+.hero-cta{background:#1a1200;color:var(--gold);border:none;border-radius:14px;padding:13px 22px;font:900 15px Nunito,sans-serif;cursor:pointer;display:inline-flex;align-items:center;gap:8px}
+.hero-cta svg{width:16px;height:16px;fill:var(--gold)}
+
+/* Поиск */
+.search-wrap{margin:2px 16px 12px;position:relative}
+.search-wrap input{width:100%;background:var(--panel2);border:1px solid var(--border);border-radius:14px;padding:13px 16px 13px 44px;color:var(--text);font:600 14px Nunito,sans-serif;outline:none}
+.search-wrap input::placeholder{color:var(--muted)}
+.search-wrap .si{position:absolute;left:14px;top:50%;transform:translateY(-50%)}
+.search-wrap .si svg{width:18px;height:18px;fill:var(--muted)}
+
+/* Категории */
+.cats{display:flex;gap:9px;overflow-x:auto;padding:4px 16px 4px;scrollbar-width:none}
+.cats::-webkit-scrollbar{display:none}
+.cat-btn{flex:none;padding:9px 16px;border-radius:12px;border:1px solid var(--border);background:var(--panel2);font:800 13px Nunito,sans-serif;color:var(--text2);cursor:pointer;transition:.15s;white-space:nowrap}
+.cat-btn.active{background:var(--gold);border-color:var(--gold);color:#111}
+
+/* Меню (menu.js) */
+#menu-content{padding:8px 0 20px}
+.section{padding:0 16px 8px}
+.section-title{font-family:'Bebas Neue',sans-serif;font-size:22px;letter-spacing:.6px;color:var(--text);padding:18px 0 10px}
+.items-grid{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+.item-card{background:var(--panel);border-radius:16px;overflow:hidden;border:1px solid var(--border);transition:transform .1s}
+.item-card:active{transform:scale(.97)}
+.item-img-placeholder{width:100%;aspect-ratio:1;background:linear-gradient(135deg,#2a2622,#1b1917);display:flex;align-items:center;justify-content:center;position:relative}
+.item-img-placeholder::after{content:'YaYa';font-family:'Bebas Neue',sans-serif;font-size:22px;letter-spacing:1px;color:rgba(244,180,0,.30)}
+.item-info{padding:9px 11px 11px}
+.item-name{font-size:13px;font-weight:800;color:var(--text);line-height:1.3;margin-bottom:4px;min-height:34px}
+.item-price{font-size:15px;font-weight:900;color:var(--gold)}
+.item-add-row{display:flex;align-items:center;justify-content:space-between;margin-top:6px}
+.items-list{display:flex;flex-direction:column;gap:10px}
+.item-wide{background:var(--panel);border-radius:16px;border:1px solid var(--border);padding:12px;display:flex;gap:12px;align-items:center}
+.item-wide .item-img-placeholder{width:80px;height:80px;aspect-ratio:unset;border-radius:12px;flex:none}
+.item-wide .item-img-placeholder::after{font-size:15px}
+.item-wide-info{flex:1;min-width:0}
+.item-wide-info .item-name{min-height:unset}
+.item-wide-desc{font-size:11px;color:var(--text2);font-weight:700;margin-top:2px;line-height:1.3}
+.item-wide-bottom{display:flex;align-items:center;justify-content:space-between;margin-top:8px}
+.btn-add{width:34px;height:34px;border-radius:50%;background:var(--gold);border:none;color:#111;font-size:20px;font-weight:800;cursor:pointer;display:flex;align-items:center;justify-content:center;flex:none}
+.btn-add:active{transform:scale(.9)}
+
+/* Плавающая корзина */
+.cart-bar{display:none!important}
+.cart-bar.visible{display:block}
+.cart-btn{width:100%;background:var(--gold);border:none;border-radius:15px;padding:14px 18px;display:flex;align-items:center;justify-content:space-between;cursor:pointer;box-shadow:0 10px 30px rgba(0,0,0,.5)}
+.cart-left{display:flex;align-items:center;gap:10px;color:#111;font-weight:900;font-size:15px}
+.cart-badge{background:#111;color:var(--gold);min-width:24px;height:24px;border-radius:12px;display:flex;align-items:center;justify-content:center;font-size:13px;font-weight:900;padding:0 6px}
+
+/* Формы */
+.cart-items,.order-form{padding:16px}
+.cart-item{display:flex;gap:12px;background:var(--panel);border:1px solid var(--border);border-radius:14px;padding:12px;margin-bottom:10px}
+.ci-emoji{width:46px;height:46px;border-radius:11px;background:var(--panel2);display:flex;align-items:center;justify-content:center;flex:none;position:relative}
+.ci-emoji::after{content:'YaYa';font-family:'Bebas Neue',sans-serif;font-size:12px;color:rgba(244,180,0,.35)}
+.ci-info{flex:1;min-width:0}
+.ci-name{font-weight:800;font-size:14px;color:var(--text)}
+.ci-desc{font-size:12px;color:var(--text2);margin-top:2px}
+.ci-price{font-size:12px;color:var(--gold);font-weight:800;margin-top:4px}
+.ci-right{display:flex;flex-direction:column;align-items:flex-end;justify-content:space-between}
+.ci-total{font-weight:900;font-size:14px;color:var(--text)}
+.qty-control{display:flex;align-items:center;gap:10px}
+.qty-btn{width:28px;height:28px;border-radius:9px;border:1px solid var(--border2);background:var(--panel2);color:var(--text);font-size:18px;font-weight:800;cursor:pointer;line-height:1}
+.qty-num{font-weight:900;min-width:16px;text-align:center;color:var(--text)}
+.cart-summary{margin:0 16px}
+.summary-row{display:flex;justify-content:space-between;padding:7px 0;font-size:14px}
+.summary-label{color:var(--text2);font-weight:700}.summary-val{font-weight:800;color:var(--text)}
+.summary-divider{height:1px;background:var(--border);margin:8px 0}
+.summary-total-label{font-weight:900;font-size:16px}.summary-total-val{font-weight:900;font-size:18px;color:var(--gold)}
+.form-block{background:var(--panel);border:1px solid var(--border);border-radius:16px;padding:14px;margin-bottom:14px}
+.form-label{display:flex;align-items:center;gap:8px;font-weight:900;font-size:14px;color:var(--text);margin-bottom:10px}
+.form-label svg{width:17px;height:17px;fill:var(--gold)}
+.form-input{width:100%;background:var(--panel2);border:1px solid var(--border2);border-radius:12px;padding:12px;color:var(--text);font:600 14px Nunito,sans-serif;resize:none}
+.form-input::placeholder{color:var(--muted)}
+.address-wrap{position:relative}
+.autocomplete-list{position:absolute;left:0;right:0;top:100%;z-index:60;background:var(--elev);border:1px solid var(--border2);border-radius:12px;margin-top:4px;overflow:hidden}
+.autocomplete-item{padding:11px 13px;font-size:13px;font-weight:700;color:var(--text);cursor:pointer;border-bottom:1px solid var(--border)}
+.next-btn,.confirm-btn{display:block;width:calc(100% - 32px);margin:6px 16px 20px;padding:15px;border:none;border-radius:15px;background:var(--gold);color:#111;font:900 16px Nunito,sans-serif;cursor:pointer}
+.confirm-btn{background:var(--ok);color:#08260f}
+.pay-options{display:flex;flex-direction:column;gap:8px}
+.pay-opt{display:flex;align-items:center;gap:10px;padding:13px 14px;border-radius:12px;background:var(--panel2);border:1.5px solid var(--border);color:var(--text);font-weight:800;font-size:14px;cursor:pointer}
+.pay-opt.selected{border-color:var(--gold);background:rgba(244,180,0,.08)}
+.pay-opt svg{width:20px;height:20px;fill:var(--gold);flex:none}
+.qr-block,.remote-block{display:none;margin-top:12px;text-align:center}
+.qr-block img{width:180px;height:180px;border-radius:12px;background:#fff;padding:8px}
+.qr-hint{font-size:12px;color:var(--text2);margin-top:8px;line-height:1.5}
+.qr-amount{font-size:18px;font-weight:900;color:var(--gold);margin-top:6px}
+.remote-label{font-size:13px;color:var(--text2);font-weight:700;margin-bottom:8px;text-align:left}
+.for-other-toggle{display:flex;align-items:center;justify-content:space-between}
+.toggle-label{font-weight:800;font-size:14px}
+.toggle{width:46px;height:26px;border-radius:14px;background:var(--gray2);position:relative;cursor:pointer;transition:.2s}
+.toggle::after{content:"";position:absolute;top:3px;left:3px;width:20px;height:20px;border-radius:50%;background:#fff;transition:.2s}
+.toggle.on{background:var(--gold)}.toggle.on::after{left:23px}
+
+/* Инфо/Заказы */
+.page-pad{padding:16px}
+.info-card{background:var(--panel);border:1px solid var(--border);border-radius:16px;padding:16px;margin-bottom:12px}
+.info-card h4{font-family:'Bebas Neue',sans-serif;font-size:19px;letter-spacing:.6px;color:var(--gold);margin-bottom:8px}
+.info-row{display:flex;gap:10px;align-items:flex-start;font-size:14px;font-weight:700;color:var(--text);padding:6px 0}
+.info-row svg{width:18px;height:18px;fill:var(--gold);flex:none;margin-top:1px}
+.empty-state{text-align:center;color:var(--text2);padding:60px 20px;font-weight:700}
+.empty-state svg{width:54px;height:54px;fill:var(--muted);margin-bottom:14px}
+
+/* Нижняя панель */
+.bottom-nav{position:fixed;bottom:0;left:50%;transform:translateX(-50%);width:100%;max-width:480px;z-index:200;background:rgba(15,14,12,.96);backdrop-filter:blur(20px);border-top:1px solid var(--border);display:flex;padding:8px 0 16px}
+.nav-item{flex:1;display:flex;flex-direction:column;align-items:center;gap:4px;cursor:pointer;position:relative;color:var(--muted);font-size:9.5px;font-weight:800;letter-spacing:.3px;text-transform:uppercase;padding:4px 0}
+.nav-item svg{width:23px;height:23px;fill:currentColor;transition:.15s}
+.nav-item.active{color:var(--gold)}
+.nav-badge{position:absolute;top:-2px;right:calc(50% - 22px);background:var(--gold);color:#111;font-size:9px;font-weight:900;min-width:16px;height:16px;border-radius:8px;padding:0 4px;display:none;align-items:center;justify-content:center;line-height:16px}
+.nav-badge.show{display:flex}
+
+/* ── ТВ: вертикальная лента видео ── */
+body.tv-open{overflow:hidden}
+body.tv-open #cartBar{display:none!important}
+#screen-tv{padding-bottom:0}
+#tvFeed{height:calc(100dvh - 74px);height:calc(100vh - 74px);overflow-y:scroll;scroll-snap-type:y mandatory;-webkit-overflow-scrolling:touch;background:#000;scrollbar-width:none}
+#tvFeed::-webkit-scrollbar{display:none}
+.tv-slide{position:relative;height:calc(100dvh - 74px);height:calc(100vh - 74px);scroll-snap-align:start;scroll-snap-stop:always;overflow:hidden;background:#000;display:flex;align-items:center;justify-content:center}
+.tv-thumb{position:absolute;inset:0;background-size:cover;background-position:center;background-color:#000;filter:brightness(.9)}
+.tv-frame{position:absolute;inset:0;z-index:2}
+.tv-frame iframe{width:100%;height:100%;border:0;display:block}
+.tv-topbar{position:absolute;top:0;left:0;right:0;z-index:4;display:flex;align-items:center;justify-content:space-between;padding:14px 14px 26px;background:linear-gradient(rgba(0,0,0,.55),transparent);pointer-events:none}
+.tv-logo{font-family:'Bebas Neue',sans-serif;font-size:20px;letter-spacing:1px;color:#fff;text-shadow:0 1px 8px rgba(0,0,0,.6)}
+.tv-logo span{color:var(--gold)}
+.tv-sound{pointer-events:auto;background:rgba(0,0,0,.5);backdrop-filter:blur(8px);color:#fff;border:none;border-radius:999px;padding:8px 13px;font:800 12px Nunito,sans-serif;display:flex;align-items:center;gap:6px;cursor:pointer}
+.tv-sound svg{width:15px;height:15px;fill:currentColor}
+.tv-overlay{position:absolute;left:0;right:0;bottom:0;z-index:4;padding:20px 16px 24px;background:linear-gradient(transparent,rgba(0,0,0,.8));pointer-events:none}
+.tv-caption{font-size:14px;font-weight:800;color:#fff;line-height:1.35;margin-bottom:12px;text-shadow:0 1px 8px rgba(0,0,0,.7);max-width:86%}
+.tv-cta{pointer-events:auto;display:inline-flex;align-items:center;gap:8px;background:var(--gold);color:#111;border:none;border-radius:14px;padding:11px 18px;font:900 14px Nunito,sans-serif;cursor:pointer}
+.tv-cta:active{transform:scale(.96)}
+.tv-cta svg{width:16px;height:16px;fill:#111}
+.tv-empty{height:calc(100dvh - 74px);height:calc(100vh - 74px);display:flex;flex-direction:column;align-items:center;justify-content:center;gap:10px;color:var(--text2);text-align:center;padding:0 30px;font-weight:700}
+.tv-empty b{font-family:'Bebas Neue',sans-serif;font-size:24px;letter-spacing:.6px;color:var(--gold)}
+</style>
+</head>
+<body>
+
+<svg style="display:none" xmlns="http://www.w3.org/2000/svg"><defs>
+<symbol id="ic-home" viewBox="0 0 24 24"><path d="M12 3l9 8h-3v9h-5v-6H11v6H6v-9H3z"/></symbol>
+<symbol id="ic-cart" viewBox="0 0 24 24"><path d="M7 4h-3v2h2l1.6 8.4A2 2 0 0 0 9.6 16H18v-2H9.9l-.3-1.5H19l1.5-7H6.2L6 4zm2 15a2 2 0 1 0 0 4 2 2 0 0 0 0-4zm9 0a2 2 0 1 0 0 4 2 2 0 0 0 0-4z"/></symbol>
+<symbol id="ic-orders" viewBox="0 0 24 24"><path d="M3 4h13l4 4v3h-2V9h-3V6H5v13h6v2H3zm14 8a5 5 0 1 1 0 10 5 5 0 0 1 0-10zm-.7 7l3.2-3.2-1-1-2.2 2.1-1-.9-1 1z"/></symbol>
+<symbol id="ic-info" viewBox="0 0 24 24"><path d="M12 2a10 10 0 1 0 0 20 10 10 0 0 0 0-20zm1 15h-2v-6h2zm0-8h-2V7h2z"/></symbol>
+<symbol id="ic-pin" viewBox="0 0 24 24"><path d="M12 2a7 7 0 0 0-7 7c0 5 7 13 7 13s7-8 7-13a7 7 0 0 0-7-7zm0 9.5A2.5 2.5 0 1 1 12 6a2.5 2.5 0 0 1 0 5.5z"/></symbol>
+<symbol id="ic-target" viewBox="0 0 24 24"><path d="M12 8a4 4 0 1 0 0 8 4 4 0 0 0 0-8zm0-6v3m0 14v3M2 12h3m14 0h3M12 4a8 8 0 1 0 0 16 8 8 0 0 0 0-16z" fill="none" stroke="currentColor" stroke-width="2"/></symbol>
+<symbol id="ic-map" viewBox="0 0 24 24"><path d="M15 4l-6 2-6-2v16l6 2 6-2 6 2V4l-6-2zm0 2.2l4 1.3v11.3l-4-1.3zM9 6.5l4 1.3v11.3L9 17.8z"/></symbol>
+<symbol id="ic-chat" viewBox="0 0 24 24"><path d="M4 4h16v12H7l-3 3z"/></symbol>
+<symbol id="ic-card" viewBox="0 0 24 24"><path d="M2 5h20v4H2zm0 6h20v8H2zm3 4h6v2H5z"/></symbol>
+<symbol id="ic-clock" viewBox="0 0 24 24"><path d="M12 2a10 10 0 1 0 0 20 10 10 0 0 0 0-20zm1 10V6h-2v7h6v-2z"/></symbol>
+<symbol id="ic-phone" viewBox="0 0 24 24"><path d="M6.6 10.8a15 15 0 0 0 6.6 6.6l2.2-2.2c.3-.3.7-.4 1-.2 1.2.4 2.4.6 3.6.6.6 0 1 .4 1 1V20c0 .6-.4 1-1 1A17 17 0 0 1 3 4c0-.6.4-1 1-1h3.4c.6 0 1 .4 1 1 0 1.2.2 2.4.6 3.6.1.3 0 .7-.2 1z"/></symbol>
+<symbol id="ic-truck" viewBox="0 0 24 24"><path d="M3 5h11v9H3zm12 3h3l3 3v3h-2a2 2 0 1 1-4 0h-3V8zM7 14a2 2 0 1 0 0 4 2 2 0 0 0 0-4z"/></symbol>
+<symbol id="ic-search" viewBox="0 0 24 24"><path d="M10 4a6 6 0 1 0 3.5 10.9l4.3 4.3 1.4-1.4-4.3-4.3A6 6 0 0 0 10 4zm0 2a4 4 0 1 1 0 8 4 4 0 0 1 0-8z"/></symbol>
+<symbol id="ic-volume" viewBox="0 0 24 24"><path d="M4 9v6h4l5 5V4L8 9zm12 3a4 4 0 0 0-2-3.5v7A4 4 0 0 0 16 12zm-2-7v2a5 5 0 0 1 0 10v2a7 7 0 0 0 0-14z"/></symbol>
+<symbol id="ic-mute" viewBox="0 0 24 24"><path d="M4 9v6h4l5 5V4L8 9zm15.5 3l2 2-1.4 1.4-2-2-2 2L14.6 14l2-2-2-2L16 8.6l2 2 2-2 1.4 1.4z"/></symbol>
+<symbol id="ic-tv" viewBox="0 0 24 24"><path d="M3 6h18a1 1 0 0 1 1 1v11a1 1 0 0 1-1 1H3a1 1 0 0 1-1-1V7a1 1 0 0 1 1-1zm7 3.2v6.6l5.5-3.3zM7 2.5l3.5 2.8L14 2.5"/></symbol>
+</defs></svg>
+
+<!-- ── ЭКРАН 1: МЕНЮ ── -->
+<div class="screen active" id="screen-menu">
+  <div class="header">
+    <div class="brand-row">
+      <img class="brand-mark" src="icon-vitrina-192.png" alt="" onerror="this.style.display='none'">
+      <div>
+        <div class="logo">Ya<span>Ya</span></div>
+        <div class="header-sub">CHICKEN &amp; PIZZA</div>
+      </div>
+    </div>
+    <div class="radio" id="radioPill" title="Радио YaYa">
+      <button class="radio-main" onclick="radioToggle()" aria-label="Радио YaYa">
+        <span class="radio-eq"><i></i><i></i><i></i></span>
+        <span class="radio-text"><b>РАДИО</b><i>YaYa</i></span>
+      </button>
+      <button class="radio-mute" id="radioMuteBtn" onclick="radioMute()" aria-label="Звук"></button>
+    </div>
+  </div>
+
+  <div class="hero" onclick="document.getElementById('searchInput').scrollIntoView({behavior:'smooth',block:'start'})">
+    <img src="banner.jpg" alt="YaYa Chicken" loading="eager">
+  </div>
+
+  <div class="search-wrap">
+    <span class="si"><svg><use href="#ic-search"/></svg></span>
+    <input type="text" placeholder="Поиск в меню…" id="searchInput" oninput="handleSearch(this.value)">
+  </div>
+
+  <div class="cats" id="cats"></div>
+  <div id="menu-content"></div>
+</div>
+
+<!-- Плавающая корзина -->
+<div class="cart-bar" id="cartBar">
+  <button class="cart-btn" onclick="goCart()">
+    <div class="cart-left"><div class="cart-badge" id="cartCount">0</div><span>Корзина</span></div>
+    <div id="cartTotal" style="font-size:16px;font-weight:900;color:#111">0 тг</div>
+  </button>
+</div>
+
+<!-- ── ЭКРАН 2: КОРЗИНА ── -->
+<div class="screen cart-screen" id="screen-cart">
+  <div class="header"><button class="back-btn" onclick="goMenu()">← Меню</button><div class="h-title">Корзина</div><div style="width:60px"></div></div>
+  <div class="cart-items" id="cartItems"></div>
+  <div class="cart-summary" id="cartSummary"></div>
+  <button class="next-btn" onclick="goAddress()">Оформить заказ</button>
+</div>
+
+<!-- ── ЭКРАН 3: АДРЕС ── -->
+<div class="screen order-screen" id="screen-address">
+  <div class="header"><button class="back-btn" onclick="goCart()">← Корзина</button><div class="h-title">Адрес доставки</div><div style="width:60px"></div></div>
+  <div class="order-form">
+    <div class="form-block">
+      <div class="form-label"><svg><use href="#ic-pin"/></svg>Адрес доставки</div>
+      <div style="display:flex;gap:8px;margin-bottom:10px">
+        <button onclick="getGeo()" style="flex:1;padding:11px;background:var(--gold);color:#111;border:none;border-radius:12px;font:800 13px Nunito,sans-serif;cursor:pointer;display:flex;align-items:center;justify-content:center;gap:6px"><svg style="width:16px;height:16px;fill:#111"><use href="#ic-target"/></svg>Геолокация</button>
+        <button onclick="toggleMap()" id="mapToggleBtn" style="flex:1;padding:11px;background:var(--panel2);color:var(--text);border:1px solid var(--border2);border-radius:12px;font:800 13px Nunito,sans-serif;cursor:pointer;display:flex;align-items:center;justify-content:center;gap:6px"><svg style="width:16px;height:16px;fill:var(--gold)"><use href="#ic-map"/></svg>На карте</button>
+      </div>
+      <div id="mapContainer" style="display:none;border-radius:12px;overflow:hidden;margin-bottom:10px;height:320px;border:1px solid var(--border2)"><div id="map" style="height:100%;width:100%"></div></div>
+      <div id="geoStatus" style="font-size:12px;color:var(--text2);font-weight:700;margin-bottom:6px;display:none"></div>
+      <div class="address-wrap">
+        <textarea class="form-input" id="addressInput" rows="2" placeholder="Начните вводить улицу, затем добавьте дом и квартиру" oninput="onAddressInput(this.value)" autocomplete="off"></textarea>
+        <div class="autocomplete-list" id="autocompleteList" style="display:none"></div>
+      </div>
+    </div>
+    <div class="form-block">
+      <div class="form-label"><svg><use href="#ic-chat"/></svg>Комментарий курьеру</div>
+      <textarea class="form-input" id="commentInput" rows="2" placeholder="Домофон, этаж, время, пожелания"></textarea>
+    </div>
+    <button class="next-btn" onclick="goCheckout()">Далее</button>
+  </div>
+</div>
+
+<!-- ── ЭКРАН 4: ИТОГ ── -->
+<div class="screen order-screen" id="screen-checkout">
+  <div class="header"><button class="back-btn" onclick="goAddress()">← Адрес</button><div class="h-title">Ваш заказ</div><div style="width:60px"></div></div>
+  <div class="order-form">
+    <div class="form-block" id="checkoutItems"></div>
+    <div class="form-block" id="checkoutSummary"></div>
+    <div class="form-block">
+      <div class="form-label"><svg><use href="#ic-card"/></svg>Способ оплаты</div>
+      <div class="pay-options">
+        <div class="pay-opt selected" id="pay-cash" onclick="selectPay('cash')"><svg><use href="#ic-card"/></svg>Наличные</div>
+        <div class="pay-opt" id="pay-kaspi-qr" onclick="selectPay('kaspi-qr')"><svg><use href="#ic-card"/></svg>Kaspi QR</div>
+        <div class="pay-opt" id="pay-kaspi-remote" onclick="selectPay('kaspi-remote')"><svg><use href="#ic-card"/></svg>Kaspi удалённый</div>
+        <div class="pay-opt" id="pay-halyk-remote" onclick="selectPay('halyk-remote')"><svg><use href="#ic-card"/></svg>Halyk удалённый</div>
+      </div>
+      <div class="qr-block" id="qrBlock"><img id="qrImg" src="" alt="Kaspi QR"><div class="qr-hint">Откройте Kaspi.kz → QR-сканер<br>и отсканируйте код для оплаты</div><div class="qr-amount" id="qrAmount"></div></div>
+      <div class="remote-block" id="remoteBlock"><div class="remote-label" id="remoteLabel">Номер телефона для выставления счёта:</div><input class="form-input" id="remotePhone" type="tel" placeholder="+7 777 000 00 00" style="height:48px"></div>
+    </div>
+    <div class="form-block">
+      <div class="for-other-toggle"><span class="toggle-label">Заказ для другого человека</span><div class="toggle" id="otherToggle" onclick="toggleOther()"></div></div>
+      <div id="otherPhone" style="display:none;margin-top:12px"><input class="form-input" id="phoneInput" type="tel" placeholder="Телефон получателя" style="height:48px"></div>
+    </div>
+    <button class="confirm-btn" id="confirmBtn" onclick="confirmOrder()">Подтвердить заказ</button>
+  </div>
+</div>
+
+<!-- ── ЭКРАН 5: КВИТАНЦИЯ ── -->
+<div class="screen" id="screen-success">
+  <div class="header"><div style="width:60px"></div><div class="h-title">Спасибо</div><div style="width:60px"></div></div>
+  <div style="padding:16px;display:flex;flex-direction:column;align-items:center;gap:14px">
+    <div style="font-family:'Bebas Neue';font-size:34px;letter-spacing:1px;color:var(--gold);margin-top:6px">ЗАКАЗ ПРИНЯТ</div>
+    <div style="font-size:14px;color:var(--text2);font-weight:700;text-align:center;line-height:1.6">Спасибо за Ваш заказ в YaYa Chicken.<br>Желаем приятного аппетита.</div>
+    <div id="receipt" style="width:100%;background:#fff;border-radius:16px;overflow:hidden;color:#111">
+      <div style="background:var(--gold);padding:16px;text-align:center"><div style="color:#111;font-size:18px;font-weight:900">YaYa Chicken</div><div style="color:#3a3a3a;font-size:12px;font-weight:700">ул. Абая, 49/5 · Экибастуз</div><div style="color:#555;font-size:11px;margin-top:4px" id="receiptDate"></div></div>
+      <div style="padding:16px"><div id="receiptItems"></div><div id="receiptTotal"></div><div id="receiptInfo"></div>
+        <div style="text-align:center;margin-top:16px;padding-top:12px;border-top:1px dashed #ccc"><div style="font-size:12px;color:#666;font-weight:700;line-height:1.7">Сохраните квитанцию для подтверждения заказа<br>Время доставки: ~45–60 минут<br>Спасибо, что выбрали YaYa Chicken</div></div>
+      </div>
+    </div>
+    <div id="pdfBtnWrap" style="width:100%"><button onclick="downloadPDF()" style="width:100%;padding:14px;background:var(--panel2);border:1px solid var(--gold);border-radius:15px;color:var(--gold);font:800 15px Nunito,sans-serif;cursor:pointer">Скачать квитанцию PDF</button></div>
+  </div>
+</div>
+
+<!-- ── ЭКРАН: ЗАКАЗЫ ── -->
+<div class="screen" id="screen-orders">
+  <div class="header"><div style="width:60px"></div><div class="h-title">Мои заказы</div><div style="width:60px"></div></div>
+  <div class="page-pad" id="ordersList"></div>
+</div>
+
+<!-- ── ЭКРАН: ИНФО ── -->
+<div class="screen" id="screen-info">
+  <div class="header"><div style="width:60px"></div><div class="h-title">Информация</div><div style="width:60px"></div></div>
+  <div class="page-pad">
+    <div class="info-card"><h4>YaYa Chicken</h4>
+      <div class="info-row"><svg><use href="#ic-pin"/></svg>ул. Абая, 49/5 · Экибастуз</div>
+      <div class="info-row"><svg><use href="#ic-clock"/></svg>Ежедневно 10:00 – 23:00</div>
+      <div class="info-row"><svg><use href="#ic-phone"/></svg>+7 777 000 00 00</div>
+    </div>
+    <div class="info-card"><h4>Доставка</h4>
+      <div class="info-row"><svg><use href="#ic-truck"/></svg>Среднее время: 45–60 минут</div>
+      <div class="info-row"><svg><use href="#ic-card"/></svg>Оплата: наличные, Kaspi QR, Kaspi/Halyk удалённо</div>
+    </div>
+  </div>
+</div>
+
+<!-- ── ЭКРАН: ТВ (лента видео) ── -->
+<div class="screen" id="screen-tv">
+  <div id="tvFeed"></div>
+</div>
+
+<!-- скрытый плеер радио -->
+<div id="ytRadio"></div>
+
+<!-- ── НИЖНЯЯ ПАНЕЛЬ ── -->
+<nav class="bottom-nav">
+  <div class="nav-item active" id="nav-home" onclick="navTo('menu',this)"><svg><use href="#ic-home"/></svg><span>Главная</span></div>
+  <div class="nav-item" id="nav-cart" onclick="goCart();setNav(this)"><svg><use href="#ic-cart"/></svg><span>Корзина</span><div class="nav-badge" id="navCartBadge">0</div></div>
+  <div class="nav-item" id="nav-tv" onclick="openTV(this)"><svg><use href="#ic-tv"/></svg><span>ТВ</span></div>
+  <div class="nav-item" id="nav-orders" onclick="navTo('orders',this)"><svg><use href="#ic-orders"/></svg><span>Заказы</span></div>
+  <div class="nav-item" id="nav-info" onclick="navTo('info',this)"><svg><use href="#ic-info"/></svg><span>Инфо</span></div>
+</nav>
+
+<!-- логика заказа -->
+<script src="state.js"></script>
+<script src="menu.js"></script>
+<script src="cart.js"></script>
+<script src="map.js"></script>
+<script src="checkout.js"></script>
+
+<script>
+/* ═══ Надёжный перехват создания заказа ═══
+   Ловим ответ сервера при оформлении (в нём всегда есть номер заказа)
+   и сохраняем заказ на телефоне клиента — чтобы он был во вкладке «Заказы».
+   Работает и через fetch, и через XHR, независимо от checkout.js. */
+(function(){
+  function saveOrder(num,id,body){
+    if(num==null) return;
+    let list=[]; try{list=JSON.parse(localStorage.getItem('yaya_orders')||'[]');}catch(e){}
+    if(list.some(o=>String(o.num)===String(num))) return;
+    let d={}; try{ d=(typeof body==='string')?JSON.parse(body):(body&&typeof body==='object'?body:{}); }catch(e){}
+    list.push({num:num, id:id!=null?id:null,
+      total:Number(d.total)||0, delivery:Number(d.delivery)||0,
+      address:d.address||'', date:new Date().toLocaleString('ru-RU')});
+    try{localStorage.setItem('yaya_orders',JSON.stringify(list));}catch(e){}
+    try{ if(typeof renderOrders==='function') renderOrders(); }catch(e){}
+  }
+  function inspect(text,body){
+    if(!body) return;
+    try{ const j=JSON.parse(text); if(j && j.num!=null) saveOrder(j.num, j.id, body); }catch(e){}
+  }
+  const _fetch=window.fetch;
+  if(_fetch){
+    window.fetch=function(url,opts){
+      const body=opts&&opts.body;
+      const p=_fetch.apply(this,arguments);
+      try{ p.then(function(r){ try{ r.clone().text().then(function(t){inspect(t,body);}).catch(function(){}); }catch(e){} }).catch(function(){}); }catch(e){}
+      return p;
+    };
+  }
+  const _open=XMLHttpRequest.prototype.open, _send=XMLHttpRequest.prototype.send;
+  XMLHttpRequest.prototype.open=function(m,u){ this.__yy_url=u; return _open.apply(this,arguments); };
+  XMLHttpRequest.prototype.send=function(body){
+    try{ this.addEventListener('load',function(){ try{ inspect(this.responseText, body); }catch(e){} }); }catch(e){}
+    return _send.apply(this,arguments);
+  };
+})();
+
+/* ── Загрузка контента из content.json (правится в кабинете admin.html).
+      Если файла нет или он битый — работаем на встроенных данных. ── */
+(async function bootstrap(){
+  try{
+    const r=await fetch('content.json',{cache:'no-store'});
+    if(r.ok){
+      const c=await r.json();
+      if(c && Array.isArray(c.menu) && c.menu.length) MENU=c.menu;
+      if(c && Array.isArray(c.tv)) TV_VIDEOS=c.tv;
+      if(c && c.radio && c.radio.videoId) RADIO_VIDEO_ID=c.radio.videoId;
+      if(c && c.radio && c.radio.title){const ri=document.querySelector('.radio-text i'); if(ri)ri.textContent=c.radio.title;}
+    }
+  }catch(e){/* нет content.json — не страшно */}
+  renderMenu();
+  loadYTApi();
+})();
+
+/* Навигация */
+function setNav(el){document.querySelectorAll('.bottom-nav .nav-item').forEach(n=>n.classList.remove('active'));if(el)el.classList.add('active');}
+function navTo(screen,el){if(screen!=='tv')stopTV();showScreen(screen);setNav(el);window.scrollTo(0,0);}
+const _goCart=window.goCart; window.goCart=function(){stopTV();if(_goCart)_goCart();setNav(document.getElementById('nav-cart'));};
+const _goMenu=window.goMenu; window.goMenu=function(){stopTV();if(_goMenu)_goMenu();setNav(document.getElementById('nav-home'));};
+
+/* ══════════ ТВ: вертикальная лента видео (YouTube) ══════════
+   Впишите сюда ID своих роликов/Shorts. ID — это часть ссылки:
+     youtube.com/shorts/XXXXXXXXXXX   → XXXXXXXXXXX
+     youtu.be/XXXXXXXXXXX             → XXXXXXXXXXX
+     youtube.com/watch?v=XXXXXXXXXXX  → XXXXXXXXXXX
+   Порядок в массиве = порядок в ленте (можно чередовать свои
+   видео и любые другие). Вертикальные Shorts (9:16) смотрятся
+   лучше всего; горизонтальные видео будут с чёрными полосами.
+   Поля: id (обязательно), caption (подпись, необязательно),
+         cat (id категории меню для кнопки, необязательно).
+   Категории: sets, wings, snacks, burgers, doners, pizza,
+              bliny, drinks, coffee, cocktails, mohito,
+              lemonade, sauces                                   */
+let TV_VIDEOS = [
+  {id:'aqz-KE-bpKQ', caption:'Демо-ролик — замените на своё видео', cat:'wings'},
+  {id:'aqz-KE-bpKQ', caption:'Свайп вверх/вниз листает ленту', cat:'pizza'},
+];
+
+let tvBuilt=false, tvActive=null, tvMuted=true;
+
+function openTV(el){
+  navTo('tv', el);
+  document.body.classList.add('tv-open');
+  if(typeof radioOn!=='undefined' && radioOn){try{ytPlayer.pauseVideo();}catch(e){} radioOn=false; if(typeof applyRadioUI==='function')applyRadioUI();}
+  buildTV();
+  requestAnimationFrame(function(){
+    const feed=document.getElementById('tvFeed'); if(!feed)return;
+    feed.scrollTop=0;
+    const first=feed.querySelector('.tv-slide'); if(first)activateSlide(first);
+  });
+}
+
+function buildTV(){
+  if(tvBuilt)return;
+  const feed=document.getElementById('tvFeed');
+  if(!TV_VIDEOS.length){
+    feed.innerHTML='<div class="tv-empty"><b>YaYa ТВ</b><div>Лента пока пустая. Добавьте ID своих видео с YouTube в массив TV_VIDEOS (в файле index.html) — и они появятся здесь.</div></div>';
+    tvBuilt=true; return;
+  }
+  feed.innerHTML=TV_VIDEOS.map(function(v,i){
+    return '<div class="tv-slide" data-i="'+i+'" data-id="'+v.id+'">'
+      +'<div class="tv-thumb" style="background-image:url(\'https://i.ytimg.com/vi/'+v.id+'/hqdefault.jpg\')"></div>'
+      +'<div class="tv-frame"></div>'
+      +'<div class="tv-topbar"><div class="tv-logo">Ya<span>Ya</span> ТВ</div>'
+      +'<button class="tv-sound" onclick="tvToggleSound(event)"><svg><use href="#ic-mute"/></svg>Звук</button></div>'
+      +'<div class="tv-overlay">'
+      +(v.caption?'<div class="tv-caption">'+v.caption+'</div>':'')
+      +'<button class="tv-cta" onclick="tvGoOrder(\''+(v.cat||'')+'\')"><svg><use href="#ic-cart"/></svg>'+(v.cat?'Заказать':'В меню')+'</button>'
+      +'</div></div>';
+  }).join('');
+  const io=new IntersectionObserver(function(entries){
+    entries.forEach(function(e){ if(e.isIntersecting && e.intersectionRatio>=0.6) activateSlide(e.target); });
+  },{root:feed, threshold:[0,0.6,1]});
+  feed.querySelectorAll('.tv-slide').forEach(function(s){io.observe(s);});
+  tvBuilt=true;
+}
+
+function activateSlide(slide){
+  if(tvActive===slide)return;
+  if(tvActive){const pf=tvActive.querySelector('.tv-frame'); if(pf)pf.innerHTML='';}
+  tvActive=slide;
+  const id=slide.dataset.id, frame=slide.querySelector('.tv-frame'), mute=tvMuted?1:0;
+  frame.innerHTML='<iframe src="https://www.youtube.com/embed/'+id
+    +'?autoplay=1&mute='+mute+'&controls=0&playsinline=1&rel=0&modestbranding=1&loop=1&playlist='+id
+    +'&enablejsapi=1" allow="autoplay; encrypted-media" allowfullscreen></iframe>';
+  updateSoundBtns();
+}
+
+function tvToggleSound(ev){
+  if(ev)ev.stopPropagation();
+  tvMuted=!tvMuted;
+  const iframe=tvActive&&tvActive.querySelector('iframe');
+  if(iframe&&iframe.contentWindow){
+    iframe.contentWindow.postMessage(JSON.stringify({event:'command',func:tvMuted?'mute':'unMute',args:[]}),'*');
+    if(!tvMuted)iframe.contentWindow.postMessage(JSON.stringify({event:'command',func:'setVolume',args:[100]}),'*');
+  }
+  updateSoundBtns();
+}
+
+function updateSoundBtns(){
+  document.querySelectorAll('#tvFeed .tv-sound').forEach(function(b){
+    b.innerHTML=tvMuted?'<svg><use href="#ic-mute"/></svg>Звук':'<svg><use href="#ic-volume"/></svg>Вкл';
+  });
+}
+
+function tvGoOrder(cat){
+  stopTV();
+  navTo('menu', document.getElementById('nav-home'));
+  if(cat)setTimeout(function(){document.getElementById('sec-'+cat)&&document.getElementById('sec-'+cat).scrollIntoView({behavior:'smooth',block:'start'});},120);
+}
+
+function stopTV(){
+  document.body.classList.remove('tv-open');
+  if(tvActive){const f=tvActive.querySelector('.tv-frame'); if(f)f.innerHTML=''; tvActive=null;}
+}
+(function(){const src=document.getElementById('cartCount'),b=document.getElementById('navCartBadge');
+  function s(){const n=parseInt(src.textContent)||0;b.textContent=n;b.classList.toggle('show',n>0);}
+  new MutationObserver(s).observe(src,{childList:true,characterData:true,subtree:true});s();})();
+
+/* Поиск по меню */
+function handleSearch(q){
+  q=(q||'').trim().toLowerCase();
+  document.querySelectorAll('#menu-content .section').forEach(sec=>{
+    let any=false;
+    sec.querySelectorAll('.item-card,.item-wide').forEach(card=>{
+      const name=(card.querySelector('.item-name')?.textContent||'').toLowerCase();
+      const show=!q||name.includes(q);card.style.display=show?'':'none';if(show)any=true;
+    });
+    const title=sec.querySelector('.section-title');if(title)title.style.display=(!q||any)?'':'none';
+    sec.style.display=(!q||any)?'':'none';
+  });
+}
+
+/* ── Мои заказы: живой статус с сервера + карта курьера ── */
+const TRACK_API='https://yaya-db-production.up.railway.app';
+const T_POS='yaya_courier_pos', T_COUR='yaya_order_couriers';
+const REST={lat:51.7294,lng:75.3220,name:'YaYa Chicken'};   /* совпадает с админкой */
+const STEP_LABELS=['Принят','Готовится','Готов','В пути','Доставлен'];
+let ordTimer=null, trackMaps={}, trackCourMk={}, trackSig='';
+
+/* стили для прогресса и карты (добавляются один раз) */
+(function(){const s=document.createElement('style');s.textContent=`
+.ord-card{background:var(--panel);border:1px solid var(--border);border-radius:16px;padding:16px;margin-bottom:14px}
+.ord-top{display:flex;align-items:center;justify-content:space-between;margin-bottom:4px}
+.ord-top h4{font-size:16px;font-weight:900}
+.ord-top .ord-total{font-family:'Bebas Neue';font-size:20px;color:var(--gold);letter-spacing:.4px}
+.ord-date{font-size:12px;color:var(--text2);font-weight:700;margin-bottom:14px}
+.steps{display:flex;align-items:flex-start;margin:6px 0 4px}
+.step{flex:1;display:flex;flex-direction:column;align-items:center;position:relative;font-size:10px;font-weight:800;color:var(--muted);text-align:center;line-height:1.2}
+.step .dot{width:22px;height:22px;border-radius:50%;background:#2a2620;border:2px solid #3a352c;display:flex;align-items:center;justify-content:center;margin-bottom:6px;z-index:2}
+.step .dot svg{width:12px;height:12px;fill:none;stroke:#111;stroke-width:3}
+.step.done .dot{background:var(--gold);border-color:var(--gold)}
+.step.cur .dot{background:var(--gold);border-color:var(--gold);box-shadow:0 0 0 4px rgba(244,180,0,.22)}
+.step.done,.step.cur{color:var(--gold)}
+.step::before{content:"";position:absolute;top:11px;left:-50%;width:100%;height:2px;background:#3a352c;z-index:1}
+.step:first-child::before{display:none}
+.step.done::before,.step.cur::before{background:var(--gold)}
+.ord-cancel{color:var(--red);font-weight:900;font-size:14px;padding:8px 0}
+.track-live{display:flex;align-items:center;gap:8px;margin-top:14px;color:var(--gold);font-weight:800;font-size:13px}
+.track-live i{width:8px;height:8px;border-radius:50%;background:var(--gold);animation:tp 1.1s infinite}
+@keyframes tp{0%,100%{opacity:1}50%{opacity:.3}}
+.track-map{height:220px;border-radius:14px;overflow:hidden;margin-top:10px;border:1px solid var(--border);background:#141310}
+.track-note{font-size:12px;color:var(--text2);font-weight:700;margin-top:8px;text-align:center}
+.cmk2{width:34px;height:34px;border-radius:50%;border:3px solid var(--gold);display:flex;align-items:center;justify-content:center;font:900 13px Nunito;color:#1a1400;background:radial-gradient(circle at 35% 30%,#FFD860,var(--gold) 60%,#D99A00);box-shadow:0 3px 10px rgba(0,0,0,.5)}
+.rmk2{width:30px;height:30px;border-radius:9px;border:2px solid #fff;display:flex;align-items:center;justify-content:center;font:900 9px Nunito;color:#3a2b00;background:var(--gold)}
+`;document.head.appendChild(s);})();
+
+function trackFetch(url,ms){ms=ms||9000;const c=new AbortController();const t=setTimeout(()=>c.abort(),ms);
+  return fetch(url,{cache:'no-store',signal:c.signal}).finally(()=>clearTimeout(t));}
+async function trackGet(path){const r=await trackFetch(TRACK_API+path);return r.json();}
+
+function stepIndex(o){
+  if(o.status==='cancel') return -1;
+  if(o.delivery_status==='delivered') return 4;
+  if(o.delivery_status==='on_way') return 3;
+  if(o.status==='done') return 2;
+  if(o.status==='cook') return 1;
+  return 0;
+}
+function stepsHtml(cur){
+  return '<div class="steps">'+STEP_LABELS.map((l,i)=>{
+    const cls=i<cur?'done':(i===cur?'cur':'');
+    const inner=i<cur?'<svg viewBox="0 0 24 24"><path d="M20 6 9 17l-5-5"/></svg>':'';
+    return `<div class="step ${cls}"><div class="dot">${inner}</div>${l}</div>`;
+  }).join('')+'</div>';
+}
+function ordCardHtml(v){
+  if(v.status==='cancel'){
+    return `<div class="ord-card"><div class="ord-top"><h4>Заказ №${v.num}</h4><div class="ord-total">${(v.total||0).toLocaleString('ru-RU')} тг</div></div>
+      <div class="ord-date">${v.date}</div><div class="ord-cancel">Заказ отменён</div></div>`;
+  }
+  const cur=stepIndex(v);
+  let extra='';
+  if(v.delivery_status==='on_way'){
+    extra=`<div class="track-live"><i></i>Курьер в пути${v.courier?' · '+v.courier:''}</div>
+      <div class="track-map" id="tm-${v.num}"></div>
+      <div class="track-note" id="tn-${v.num}"></div>`;
+  } else if(cur===4){
+    extra=`<div class="track-live" style="color:var(--green)"><i style="background:var(--green);animation:none"></i>Заказ доставлен. Приятного аппетита!</div>`;
+  } else if(cur===2){
+    extra=`<div class="track-note" style="margin-top:12px">Заказ готов, скоро выедет курьер 🛵</div>`;
+  }
+  return `<div class="ord-card"><div class="ord-top"><h4>Заказ №${v.num}</h4><div class="ord-total">${(v.total||0).toLocaleString('ru-RU')} тг</div></div>
+    <div class="ord-date">${v.date}</div>${stepsHtml(cur)}${extra}</div>`;
+}
+
+async function renderOrders(){
+  const box=document.getElementById('ordersList');
+  let local=[]; try{local=JSON.parse(localStorage.getItem('yaya_orders')||'[]');}catch(e){}
+  if(!local.length){
+    box.innerHTML='<div class="empty-state"><svg><use href="#ic-orders"/></svg><div>Заказов пока нет</div><div style="font-size:13px;margin-top:6px;font-weight:600">Оформите первый заказ в меню</div></div>';
+    trackSig=''; return;
+  }
+  let server=[],cour={},pos={};
+  try{ const j=await trackGet('/orders?limit=100'); server=j.orders||[]; }catch(e){}
+  try{ const j=await trackGet('/kv/'+T_COUR); if(j.value&&typeof j.value==='object')cour=j.value; }catch(e){}
+  try{ const j=await trackGet('/kv/'+T_POS); if(j.value&&typeof j.value==='object')pos=j.value; }catch(e){}
+  const byNum={};
+  server.forEach(o=>{ const c=cour[o.id]; if(c){o.courier=c.courier;o.delivery_status=c.delivery_status;} byNum[String(o.num)]=o; });
+  const view=local.slice().reverse().map(lo=>{
+    const s=byNum[String(lo.num)]; const d=(s&&s.data)||{};
+    return {num:lo.num,date:lo.date||'',
+      total:(Number(d.total)||lo.total||0)+(Number(d.delivery)||lo.delivery||0),
+      status:s?(s.status||'new'):'new',
+      delivery_status:s?(s.delivery_status||'pending'):'pending',
+      courier:s?(s.courier||''):'', address:(d.address||lo.address||'')};
+  });
+  const sig=view.map(v=>v.num+':'+v.status+':'+v.delivery_status+':'+v.courier).join('|');
+  if(sig!==trackSig){
+    trackSig=sig; trackMaps={}; trackCourMk={};
+    box.innerHTML=view.map(ordCardHtml).join('');
+    view.forEach(v=>{ if(v.delivery_status==='on_way') initTrack(v,pos); });
+  } else {
+    view.forEach(v=>{ if(v.delivery_status==='on_way') updateTrack(v,pos); });
+  }
+}
+
+function initTrack(v,pos){
+  const el=document.getElementById('tm-'+v.num); if(!el||typeof L==='undefined')return;
+  const p=pos[v.courier];
+  const map=L.map(el,{zoomControl:false,attributionControl:false}).setView([REST.lat,REST.lng],14);
+  L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png',{maxZoom:19}).addTo(map);
+  L.marker([REST.lat,REST.lng],{icon:L.divIcon({className:'',html:'<div class="rmk2">YaYa</div>',iconSize:[30,30],iconAnchor:[15,15]})}).addTo(map);
+  trackMaps[v.num]=map;
+  const note=document.getElementById('tn-'+v.num);
+  if(p&&typeof p.lat==='number'){
+    const mk=L.marker([p.lat,p.lng],{icon:L.divIcon({className:'',html:`<div class="cmk2">${(v.courier[0]||'К').toUpperCase()}</div>`,iconSize:[34,34],iconAnchor:[17,17]})}).addTo(map);
+    trackCourMk[v.num]=mk;
+    map.fitBounds(L.latLngBounds([[REST.lat,REST.lng],[p.lat,p.lng]]).pad(0.4));
+    if(note)note.textContent='';
+  } else { if(note)note.textContent='Курьер выехал. Он появится на карте, как только включит навигацию.'; }
+  setTimeout(()=>map.invalidateSize(),150);
+}
+function updateTrack(v,pos){
+  const map=trackMaps[v.num]; if(!map)return;
+  const p=pos[v.courier]; if(!p||typeof p.lat!=='number')return;
+  if(trackCourMk[v.num]) trackCourMk[v.num].setLatLng([p.lat,p.lng]);
+  else { trackCourMk[v.num]=L.marker([p.lat,p.lng],{icon:L.divIcon({className:'',html:`<div class="cmk2">${(v.courier[0]||'К').toUpperCase()}</div>`,iconSize:[34,34],iconAnchor:[17,17]})}).addTo(map);
+    const note=document.getElementById('tn-'+v.num); if(note)note.textContent=''; }
+}
+
+/* Запускаем обновление, когда открыта вкладка «Заказы» */
+function startOrdersRefresh(){ renderOrders(); if(ordTimer)clearInterval(ordTimer); ordTimer=setInterval(renderOrders,12000); }
+function stopOrdersRefresh(){ if(ordTimer){clearInterval(ordTimer);ordTimer=null;} }
+if(window.navTo){ const _navTo=window.navTo; window.navTo=function(screen,el){ _navTo(screen,el); if(screen==='orders')startOrdersRefresh(); else stopOrdersRefresh(); }; }
+
+/* Перехват оформленного заказа с экрана «Спасибо» (запасной способ) */
+(function(){
+  const succ=document.getElementById('screen-success');
+  if(!succ) return;
+  let timer=null;
+  function grab(){
+    const rc=document.getElementById('receipt');
+    const txt=rc?rc.textContent:'';
+    const m=txt.match(/№\s*(\d+)/);
+    if(!m) return false;
+    const num=parseInt(m[1],10);
+    let list=[]; try{list=JSON.parse(localStorage.getItem('yaya_orders')||'[]');}catch(e){}
+    if(!list.some(o=>String(o.num)===String(num))){
+      const dm=txt.match(/№\s*\d+\s*·\s*([^·\n]+)/);
+      list.push({num:num, date:dm?dm[1].trim():new Date().toLocaleString('ru-RU')});
+      try{localStorage.setItem('yaya_orders',JSON.stringify(list));}catch(e){}
+    }
+    return true;
+  }
+  function start(){
+    if(!succ.classList.contains('active')) return;
+    if(timer)clearInterval(timer);
+    if(grab())return;
+    let tries=0;
+    timer=setInterval(()=>{ tries++; if(grab()||tries>25){clearInterval(timer);timer=null;} },300);
+  }
+  new MutationObserver(start).observe(succ,{attributes:true,attributeFilter:['class']});
+  const rcEl=document.getElementById('receipt');
+  if(rcEl) new MutationObserver(()=>{ if(succ.classList.contains('active'))grab(); }).observe(rcEl,{childList:true,subtree:true,characterData:true});
+  start();
+})();
+
+/* ── РАДИО (YouTube, включается одним касанием) ── */
+let RADIO_VIDEO_ID='jfKfPfyJRdk';   /* поток «Радио YaYa» — можно менять в кабинете */
+let ytPlayer=null,ytReady=false,radioOn=false,radioMuted=false;
+function loadYTApi(){var t=document.createElement('script');t.src='https://www.youtube.com/iframe_api';document.head.appendChild(t);}
+window.onYouTubeIframeAPIReady=function(){
+  ytPlayer=new YT.Player('ytRadio',{videoId:RADIO_VIDEO_ID,
+    playerVars:{autoplay:0,controls:0,disablekb:1,playsinline:1,modestbranding:1,rel:0,loop:1,playlist:RADIO_VIDEO_ID},
+    events:{onReady:function(){ytReady=true;if(radioPending){radioPending=false;radioStart();}},
+      onStateChange:function(e){if(e.data===YT.PlayerState.PLAYING){radioOn=true;applyRadioUI();}}}});
+};
+let radioPending=false;
+function radioStart(){try{ytPlayer.unMute();ytPlayer.setVolume(60);ytPlayer.playVideo();}catch(e){}radioOn=true;radioMuted=false;applyRadioUI();}
+function radioToggle(){
+  if(!ytReady){radioPending=true;var p=document.getElementById('radioPill');if(p)p.classList.add('on');return;}
+  if(radioOn){try{ytPlayer.pauseVideo();}catch(e){}radioOn=false;radioPending=false;}
+  else{radioStart();}
+  applyRadioUI();
+}
+function radioMute(){
+  if(!ytReady||!radioOn){return;}
+  radioMuted=!radioMuted;
+  try{radioMuted?ytPlayer.mute():ytPlayer.unMute();}catch(e){}
+  applyRadioUI();
+}
+function applyRadioUI(){
+  const p=document.getElementById('radioPill');
+  p.classList.toggle('on',radioOn);p.classList.toggle('muted',radioMuted);
+  document.getElementById('radioMuteBtn').innerHTML=radioMuted
+    ?'<svg viewBox="0 0 24 24"><use href="#ic-mute"/></svg>'
+    :'<svg viewBox="0 0 24 24"><use href="#ic-volume"/></svg>';
+}
+applyRadioUI();
+
+/* PWA */
+if("serviceWorker" in navigator){window.addEventListener("load",function(){navigator.serviceWorker.register("sw.js").catch(function(){});});}
+</script>
+</body>
+</html>
