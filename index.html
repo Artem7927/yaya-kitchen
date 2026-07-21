@@ -592,11 +592,8 @@ let ordTimer=null, trackMaps={}, trackCourMk={}, trackSig='';
 .cmk2{width:34px;height:34px;border-radius:50%;border:3px solid var(--gold);display:flex;align-items:center;justify-content:center;font:900 13px Nunito;color:#1a1400;background:radial-gradient(circle at 35% 30%,#FFD860,var(--gold) 60%,#D99A00);box-shadow:0 3px 10px rgba(0,0,0,.5)}
 .rmk2{width:30px;height:30px;border-radius:9px;border:2px solid #fff;display:flex;align-items:center;justify-content:center;font:900 9px Nunito;color:#3a2b00;background:var(--gold)}
 .track-av-mk{width:44px;height:44px;border-radius:50%;border:3px solid var(--gold);overflow:hidden;box-shadow:0 3px 12px rgba(0,0,0,.6);background:var(--panel2);display:flex;align-items:center;justify-content:center}
-.track-av-mk img{width:100%;height:100%;object-fit:cover;display:block}
-.track-av-mk .av-fallback{display:none;align-items:center;justify-content:center;width:100%;height:100%}
-.track-av-mk img[onerror]~.av-fallback,
-.track-av-mk img:not([src])~.av-fallback{display:flex}
-.track-av-mk .av-fallback svg{width:22px;height:22px;fill:none;stroke:var(--gold);stroke-width:1.5;stroke-linecap:round;stroke-linejoin:round}
+.track-av-mk svg{width:26px;height:26px;fill:none;stroke:var(--gold);stroke-width:1.8;stroke-linecap:round;stroke-linejoin:round}
+.track-av-mk .av-img{display:none;width:100%;height:100%;object-fit:cover}
 .track-cafe-mk{width:36px;height:36px;border-radius:50%;border:3px solid #fff;display:flex;align-items:center;justify-content:center;font:900 8px Nunito;color:#3a2b00;background:radial-gradient(circle at 35% 30%,#FFD860,var(--gold) 60%,#D99A00);box-shadow:0 3px 14px rgba(244,180,0,.4);position:relative}
 .track-cafe-mk::after{content:'';position:absolute;top:-6px;right:-6px;width:12px;height:12px;background:url("data:image/svg+xml,%3Csvg viewBox='0 0 24 24' xmlns='http://www.w3.org/2000/svg'%3E%3Cpath d='M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z' fill='%23F4B400'/%3E%3C/svg%3E") center/contain no-repeat}
 #fullscreenMap{position:fixed;top:0;left:0;width:100vw;height:100vh;z-index:9999;background:#000;display:none;flex-direction:column}
@@ -684,9 +681,8 @@ function initTrack(v,pos){
   L.marker([REST.lat,REST.lng],{icon:L.divIcon({className:'',html:'<div class="track-cafe-mk">YaYa</div>',iconSize:[36,36],iconAnchor:[18,18]})}).addTo(map);
   trackMaps[v.num]=map;
   const note=document.getElementById('tn-'+v.num);
-  const avHtml='<img src="avatar.png" alt="" onerror="this.style.display=\'none\';this.nextElementSibling.style.display=\'flex\'" style="width:100%;height:100%;object-fit:cover"><div class="av-fallback"><svg viewBox="0 0 24 24"><circle cx="12" cy="8" r="4"/><path d="M4 22c0-4 3.5-7 8-7s8 3 8 7"/></svg></div>';
   if(p&&typeof p.lat==='number'){
-    const mk=L.marker([p.lat,p.lng],{icon:L.divIcon({className:'',html:'<div class="track-av-mk">'+avHtml+'</div>',iconSize:[44,44],iconAnchor:[22,22]})}).addTo(map);
+    const mk=L.marker([p.lat,p.lng],{icon:L.divIcon({className:'',html:'<div class="track-av-mk"><svg viewBox="0 0 36 36"><path d="M6 24c0-3.3 2.7-6 6-6s6 2.7 6 6-2.7 6-6 6-6-2.7-6-6z"/><path d="M18 24c0-3.3 2.7-6 6-6s6 2.7 6 6-2.7 6-6 6-6-2.7-6-6z"/><path d="M12 18l4-10h6l4 10"/><path d="M8 18l4-10"/><path d="M28 18l-4-10"/><path d="M12 18h14"/></svg></div>',iconSize:[44,44],iconAnchor:[22,22]})}).addTo(map);
     trackCourMk[v.num]=mk;
     map.fitBounds(L.latLngBounds([[REST.lat,REST.lng],[p.lat,p.lng]]).pad(0.4));
     if(note)note.textContent='';
@@ -777,7 +773,6 @@ applyRadioUI();
 let fsMap=null,fsTrackLayers=null;
 function openFsTrack(v,pos){
   let d=document.getElementById('fullscreenMap');
-  const avHtml='<img src="avatar.png" alt="" onerror="this.style.display=\'none\';this.nextElementSibling.style.display=\'flex\'" style="width:100%;height:100%;object-fit:cover"><div class="av-fallback"><svg viewBox="0 0 24 24"><circle cx="12" cy="8" r="4"/><path d="M4 22c0-4 3.5-7 8-7s8 3 8 7"/></svg></div>';
   if(!d){
     d=document.createElement('div');
     d.id='fullscreenMap';
@@ -796,7 +791,7 @@ function openFsTrack(v,pos){
     const p=pos[v.courier];
     if(p&&typeof p.lat==='number'){
       L.marker([p.lat,p.lng],{
-        icon:L.divIcon({className:'',html:'<div class="track-av-mk">'+avHtml+'</div>',iconSize:[44,44],iconAnchor:[22,22]})
+        icon:L.divIcon({className:'',html:'<div class="track-av-mk"><svg viewBox="0 0 36 36"><path d="M6 24c0-3.3 2.7-6 6-6s6 2.7 6 6-2.7 6-6 6-6-2.7-6-6z"/><path d="M18 24c0-3.3 2.7-6 6-6s6 2.7 6 6-2.7 6-6 6-6-2.7-6-6z"/><path d="M12 18l4-10h6l4 10"/><path d="M8 18l4-10"/><path d="M28 18l-4-10"/><path d="M12 18h14"/></svg></div>',iconSize:[44,44],iconAnchor:[22,22]})
       }).addTo(fsMap);
       fsMap.fitBounds(L.latLngBounds([[REST.lat,REST.lng],[p.lat,p.lng]]).pad(0.3));
     }
