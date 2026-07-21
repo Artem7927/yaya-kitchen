@@ -768,14 +768,12 @@ function createRadioPlayer() {
       onStateChange: (e) => {
         if (e.data === YT.PlayerState.PLAYING) {
           radioPlaying = true;
-          if (!radioSeekDone) { radioSeekDone = true; radioApplyStart(0); }
           startRadioPosSave();
           applyRadioUI();
         } else if (e.data === YT.PlayerState.PAUSED) {
           radioSavePos();
           if (!radioDucked) { radioPlaying = false; applyRadioUI(); }
         } else if (e.data === YT.PlayerState.ENDED) {
-          localStorage.setItem('radioPos','0');
           try { ytPlayer.playVideo(); } catch(_) {}
         }
       },
@@ -854,17 +852,6 @@ function radioMute() {
 function radioDuck(on) {
   if (on) { if (radioPlaying && ytReady) { radioDucked = true; radioSavePos(); try { ytPlayer.pauseVideo(); } catch(_) {} } }
   else    { if (radioDucked && ytReady) { radioDucked = false; try { ytPlayer.playVideo(); } catch(_) {} } }
-}
-function radioApplyStart(attempt) {
-  attempt = attempt || 0;
-  let dur = 0; try { dur = ytPlayer.getDuration() || 0; } catch(_) {}
-  if ((!dur || dur < 30) && attempt < 6) { setTimeout(() => radioApplyStart(attempt + 1), 500); return; }
-  if (!dur || dur < 30) dur = 5400;
-  const saved = parseFloat(localStorage.getItem('radioPos') || '0');
-  let target;
-  if (saved > 5 && saved < dur - 15) target = saved;
-  else target = Math.random() * Math.max(1, dur - 60);
-  try { ytPlayer.seekTo(Math.max(0, target), true); } catch(_) {}
 }
 function startRadioPosSave() {
   if (radioPosTimer) return;
