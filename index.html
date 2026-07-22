@@ -470,7 +470,9 @@ const CFG_API='https://yaya-db-production.up.railway.app';
 async function cfgGet(key){
   const c=new AbortController(), t=setTimeout(()=>c.abort(),8000);
   try{
-    const r=await fetch(CFG_API+'/kv/'+key,{cache:'no-store',signal:c.signal});
+    /* метка времени в адресе — чтобы ни браузер, ни service worker
+       не подсунули старую копию расписания */
+    const r=await fetch(CFG_API+'/kv/'+key+'?_='+Date.now(),{cache:'no-store',signal:c.signal});
     if(!r.ok) return null;
     const j=await r.json();
     return (j&&j.value&&typeof j.value==='object')?j.value:null;
@@ -989,29 +991,80 @@ async function sendGreetReq(){
   const req={id:'r'+Date.now()+Math.floor(Math.random()*1000), to:to, from:g('gfFrom'),
              text:g('gfText'), when:g('gfWhen'), phone:phone, ts:Date.now(), status:'new'};
   btn.disabled=true; btn.textContent='Отправляю…';
-  const ok=await greetReqPush(req) || await greetReqPush(req);
+  const res=await greetReqPush(req);
   btn.disabled=false; btn.textContent='Отправить';
-  if(ok){
+  if(res.ok){
     closeGreetForm();
     alert('Заявка принята. Мы позвоним вам, чтобы записать поздравление.');
     ['gfTo','gfFrom','gfText','gfWhen','gfPhone'].forEach(function(k){
       const e=document.getElementById(k); if(e)e.value='';
     });
-  } else alert('Не получилось отправить. Проверьте интернет и попробуйте ещё раз.');
+  } else {
+    greetOutboxAdd(req);            /* не теряем заявку — допошлём сами */
+    closeGreetForm();
+    alert('Сервер не принял заявку ('+res.err+'). Мы повторим отправку автоматически. '
+         +'Если поздравление срочное — позвоните нам.');
+  }
 }
+
+/* Запись в общий список заявок. Раньше отправка считалась неудачной,
+   если сразу после записи сервер отдавал ещё старый список — заявка
+   при этом уже лежала в базе, а человек видел ошибку и слал повтор.
+   Теперь успехом считаем сам ответ сервера, а перечитывание — только
+   подсказка. Плюс запасные форматы запроса и таймаут.            */
 async function greetReqPush(req){
+  const url=CFG_API+'/kv/yaya_greet_req';
+  let list=[];
   try{
     const cur=await cfgGet('yaya_greet_req');
-    const list=Array.isArray(cur)?cur.slice():[];
-    if(list.some(function(x){return x&&x.id===req.id;})) return true;
-    list.push(req);
-    const r=await fetch(CFG_API+'/kv/yaya_greet_req',{method:'PUT',
-      headers:{'Content-Type':'application/json'}, body:JSON.stringify(list)});
-    if(!r.ok) return false;
+    if(Array.isArray(cur)) list=cur.slice();
+    if(list.some(function(x){return x&&x.id===req.id;})) return {ok:true};
+  }catch(e){}
+  list.push(req);
+  const tries=[
+    {m:'PUT',  b:JSON.stringify(list)},
+    {m:'PUT',  b:JSON.stringify({value:list})},
+    {m:'POST', b:JSON.stringify(list)}
+  ];
+  let last='нет связи';
+  for(let i=0;i<tries.length;i++){
+    const c=new AbortController(), t=setTimeout(function(){c.abort();},12000);
+    try{
+      const r=await fetch(url,{method:tries[i].m,headers:{'Content-Type':'application/json'},
+                              body:tries[i].b,signal:c.signal});
+      if(r.ok) return {ok:true};
+      last='код '+r.status;
+    }catch(e){ last=(e&&e.name==='AbortError')?'сервер не ответил':'нет связи'; }
+    finally{ clearTimeout(t); }
+  }
+  /* сервер мог принять запись и всё же ответить ошибкой — проверяем */
+  try{
     const check=await cfgGet('yaya_greet_req');
-    return Array.isArray(check) && check.some(function(x){return x&&x.id===req.id;});
-  }catch(e){ return false; }
+    if(Array.isArray(check)&&check.some(function(x){return x&&x.id===req.id;})) return {ok:true};
+  }catch(e){}
+  return {ok:false, err:last};
 }
+
+/* Неотправленные заявки ждут в телефоне и уходят при следующей связи */
+function greetOutboxAdd(req){
+  try{
+    const l=JSON.parse(localStorage.getItem('yaya_greet_outbox')||'[]');
+    l.push(req); localStorage.setItem('yaya_greet_outbox',JSON.stringify(l.slice(-10)));
+  }catch(e){}
+}
+async function greetOutboxFlush(){
+  let l=[];
+  try{ l=JSON.parse(localStorage.getItem('yaya_greet_outbox')||'[]'); }catch(e){}
+  if(!l.length) return;
+  const left=[];
+  for(let i=0;i<l.length;i++){
+    const r=await greetReqPush(l[i]);
+    if(!r.ok) left.push(l[i]);
+  }
+  try{ localStorage.setItem('yaya_greet_outbox',JSON.stringify(left)); }catch(e){}
+}
+setInterval(greetOutboxFlush,60000);
+window.addEventListener('online',greetOutboxFlush);
 
 /* ── ПОЗДРАВЛЕНИЯ В ЭФИРЕ ──────────────────────────────────
    Администратор ставит запись на время. Пока радио играет,
@@ -1079,7 +1132,10 @@ function greetNorm(g){
   const audio=greetAudioSrc(g);
   const at=greetAtMs(g.at!==undefined?g.at:(g.when!==undefined?g.when:(g.time!==undefined?g.time:g.datetime)));
   const off=!!(g.off||g.disabled||g.paused||g.enabled===false||g.active===false);
-  return {id:String(g.id||(at+'|'+audio.slice(-40))), at:at, audio:audio, off:off, to:g.to||''};
+  /* Метку «уже звучало» привязываем и ко времени: если админ перенёс
+     запись на новое время, она должна прозвучать снова. Раньше ключом
+     был только id — один раз пропущенное поздравление умолкало навсегда. */
+  return {id:String(g.id||audio.slice(-40))+'@'+at, at:at, audio:audio, off:off, to:g.to||g.name||''};
 }
 /* Окно, в которое поздравление ещё актуально. Раньше было 2 минуты —
    если витрина в этот момент не успевала обновить расписание, запись
@@ -1093,9 +1149,26 @@ function greetDue(g){
   return d>=0 && d<=GREET_WINDOW;
 }
 function greetTick(){
-  if(greetBusy||!radioOn||!GREETINGS.length) return;
+  if(greetBusy||!GREETINGS.length) return;
   const g=GREETINGS.find(greetDue);
-  if(g) greetPlay(g);
+  if(!g){ if(greetOffered){ greetOffered=null; greetBanner(false); } return; }
+  if(radioOn) greetPlay(g);
+  else greetOffer(g);          /* радио выключено — предлагаем послушать */
+}
+/* Раньше при выключенном радио поздравление просто пропадало.
+   Теперь сверху появляется плашка, по нажатию запись играет.    */
+let greetOffered=null;
+function greetOffer(g){
+  const n=greetNorm(g); if(!n) return;
+  if(greetOffered===n.id) return;
+  greetOffered=n.id;
+  const b=greetBanner(true,'Поздравление'+(n.to?' — '+String(n.to).slice(0,22):'')+' · послушать');
+  if(!b) return;
+  b.style.cursor='pointer';
+  b.onclick=function(){
+    b.onclick=null; greetOffered=null;
+    greetUnlock(); greetBusy=false; greetPlay(g);
+  };
 }
 function greetPlay(g){
   const n=greetNorm(g);
@@ -1123,16 +1196,20 @@ function greetPlay(g){
   /* если запись длинная или не доиграла — страхуемся по времени */
   setTimeout(function(){ if(greetBusy) back(); },180000);
 }
-function greetBanner(on){
+function greetBanner(on,text){
   let b=document.getElementById('greetBanner');
   if(on){
     if(!b){
       b=document.createElement('div'); b.id='greetBanner';
-      b.innerHTML='<span class="gb-eq"><i></i><i></i><i></i></span><span>Поздравление в эфире</span>';
       document.body.appendChild(b);
     }
+    b.onclick=null; b.style.cursor='';
+    b.innerHTML='<span class="gb-eq"><i></i><i></i><i></i></span><span>'+(text||'Поздравление в эфире')+'</span>';
     requestAnimationFrame(function(){b.classList.add('on');});
-  } else if(b){ b.classList.remove('on'); }
+    return b;
+  }
+  if(b){ b.classList.remove('on'); b.onclick=null; }
+  return b;
 }
 /* Расписание тянем часто (раз в 20 сек) и сразу при запуске: раньше
    обновление шло раз в 3 минуты, а окно показа было 2 минуты —
@@ -1174,6 +1251,18 @@ window.yayaGreetCheck=function(){
             выкл:n.off, ужеИграло:greetPlayed(n.id), готово:greetDue(g)};
   });
   console.table(rows); console.log('радио включено:',radioOn); return rows;
+};
+/* Сбросить память о прозвучавших — поздравления пойдут заново */
+window.yayaGreetReset=function(){
+  try{ localStorage.removeItem('yaya_greet_done'); }catch(e){}
+  greetPull(); return 'отметки сброшены';
+};
+/* Проиграть последнее поздравление прямо сейчас — проверка эфира */
+window.yayaGreetPlayNow=function(){
+  const g=(GREETINGS||[]).filter(function(x){const n=greetNorm(x);return n&&n.audio&&!n.off;}).pop();
+  if(!g) return 'в расписании нет записей';
+  greetUnlock(); greetBusy=false; greetPlay(g);
+  return 'играю: '+((greetNorm(g)||{}).to||'поздравление');
 };
 
 /* ── РАДИО (YouTube, включается одним касанием) ── */
