@@ -200,6 +200,7 @@ body.tv-open #cartBar{display:none!important}
 .tv-ad{display:inline-block;background:rgba(244,180,0,.92);color:#1a1400;font-size:10px;font-weight:900;
   letter-spacing:1.2px;padding:4px 9px;border-radius:7px;margin-bottom:10px}
 .tv-caption{font-size:14px;font-weight:800;color:#fff;line-height:1.35;margin-bottom:12px;text-shadow:0 1px 8px rgba(0,0,0,.7);max-width:86%}
+.tv-cta.done{background:#35C77E;color:#04270f}
 .tv-cta{pointer-events:auto;display:inline-flex;align-items:center;gap:8px;background:var(--gold);color:#111;border:none;border-radius:14px;padding:11px 18px;font:900 14px Nunito,sans-serif;cursor:pointer}
 .tv-cta:active{transform:scale(.96)}
 .tv-cta svg{width:16px;height:16px;fill:#111}
@@ -531,17 +532,31 @@ function openTV(el){
 
 function tvEsc(s){return String(s==null?'':s).replace(/[&<>"]/g,function(c){return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c];});}
 
+/* Кнопка появляется только там, где её задал администратор.
+   cta.type: 'cat' — увести в категорию меню, 'item' — сразу в корзину. */
+function ctaOf(v){
+  if(v.cta && v.cta.type && v.cta.type!=='none') return v.cta;
+  if(v.cat) return {type:'cat',cat:v.cat};      /* старый формат */
+  return null;
+}
 function slideHTML(v){
   const poster=v.poster||(v.v?'https://i.ytimg.com/vi/'+v.v+'/hqdefault.jpg':'');
-  const btn=v.cat?'Заказать':'В меню';
+  const cta=ctaOf(v);
+  let btn='';
+  if(cta && cta.type==='item'){
+    btn='<button class="tv-cta" onclick="tvAddItem(this)">'
+       +'<svg><use href="#ic-cart"/></svg>В корзину</button>';
+  } else if(cta && cta.type==='cat'){
+    btn='<button class="tv-cta" onclick="tvGoOrder(\''+tvEsc(cta.cat||'')+'\')">'
+       +'<svg><use href="#ic-cart"/></svg>Заказать</button>';
+  }
   return '<div class="tv-thumb"'+(poster?' style="background-image:url(\''+tvEsc(poster)+'\')"':'')+'></div>'
     +'<div class="tv-frame"></div>'
     +'<div class="tv-topbar"><div class="tv-logo">Ya<span>Ya</span> ТВ</div>'
     +'<button class="tv-sound" onclick="tvToggleSound(event)"><svg><use href="#ic-mute"/></svg>Звук</button></div>'
     +'<div class="tv-overlay">'
-    +(v.ad?'<div class="tv-ad">Реклама</div>':'')
     +(v.caption?'<div class="tv-caption">'+tvEsc(v.caption)+'</div>':'')
-    +'<button class="tv-cta" onclick="tvGoOrder(\''+tvEsc(v.cat||'')+'\')"><svg><use href="#ic-cart"/></svg>'+btn+'</button>'
+    +btn
     +'</div>';
 }
 
@@ -646,6 +661,48 @@ function updateSoundBtns(){
   document.querySelectorAll('#tvFeed .tv-sound').forEach(function(b){
     b.innerHTML=tvMuted?'<svg><use href="#ic-mute"/></svg>Звук':'<svg><use href="#ic-volume"/></svg>Вкл';
   });
+}
+
+/* Кнопка «В корзину» на ролике. Корзина живёт в cart.js, поэтому
+   сначала зовём её напрямую, а если имя функции другое — нажимаем
+   кнопку этого же товара в меню. Так работает при любой корзине.  */
+function tvAddItem(btn){
+  const slide=btn.closest('.tv-slide');
+  const cta=slide&&slide.__item?ctaOf(slide.__item):null;
+  if(!cta){ return; }
+  const item={id:cta.id||'',name:cta.name||'',price:cta.price,cat:cta.cat||''};
+  let done=false;
+  try{
+    if(typeof addToCart==='function'){ addToCart(item.id||item.name,1); done=true; }
+    else if(typeof cartAdd==='function'){ cartAdd(item); done=true; }
+    else if(typeof addItem==='function'){ addItem(item); done=true; }
+  }catch(e){ done=false; }
+  if(!done) done=tvClickMenuButton(item.name);
+
+  if(done){
+    btn.classList.add('done');
+    btn.innerHTML='<svg><use href="#ic-cart"/></svg>Добавлено';
+    setTimeout(function(){
+      btn.classList.remove('done');
+      btn.innerHTML='<svg><use href="#ic-cart"/></svg>В корзину';
+    },1600);
+  } else {
+    /* корзину дёрнуть не вышло — просто отводим к товару в меню */
+    tvGoOrder(item.cat);
+  }
+}
+/* Ищем товар в отрисованном меню и жмём его кнопку добавления */
+function tvClickMenuButton(name){
+  if(!name) return false;
+  const norm=function(t){return String(t||'').toLowerCase().replace(/\s+/g,' ').trim();};
+  const target=norm(name);
+  const cards=document.querySelectorAll('#menu-content .item, #menu-content .card, #menu-content .product, #menu-content li');
+  for(let i=0;i<cards.length;i++){
+    if(norm(cards[i].textContent).indexOf(target)===-1) continue;
+    const b=cards[i].querySelector('button, .add, .plus, [data-add]');
+    if(b){ b.click(); return true; }
+  }
+  return false;
 }
 
 function tvGoOrder(cat){
