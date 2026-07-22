@@ -196,6 +196,9 @@ body.tv-open #cartBar{display:none!important}
 .tv-sound{pointer-events:auto;background:rgba(0,0,0,.5);backdrop-filter:blur(8px);color:#fff;border:none;border-radius:999px;padding:8px 13px;font:800 12px Nunito,sans-serif;display:flex;align-items:center;gap:6px;cursor:pointer}
 .tv-sound svg{width:15px;height:15px;fill:currentColor}
 .tv-overlay{position:absolute;left:0;right:0;bottom:0;z-index:4;padding:20px 16px 24px;background:linear-gradient(transparent,rgba(0,0,0,.8));pointer-events:none}
+.tv-frame video.tv-video{width:100%;height:100%;object-fit:cover;display:block;background:#000}
+.tv-ad{display:inline-block;background:rgba(244,180,0,.92);color:#1a1400;font-size:10px;font-weight:900;
+  letter-spacing:1.2px;padding:4px 9px;border-radius:7px;margin-bottom:10px}
 .tv-caption{font-size:14px;font-weight:800;color:#fff;line-height:1.35;margin-bottom:12px;text-shadow:0 1px 8px rgba(0,0,0,.7);max-width:86%}
 .tv-cta{pointer-events:auto;display:inline-flex;align-items:center;gap:8px;background:var(--gold);color:#111;border:none;border-radius:14px;padding:11px 18px;font:900 14px Nunito,sans-serif;cursor:pointer}
 .tv-cta:active{transform:scale(.96)}
@@ -425,17 +428,49 @@ body.tv-open #cartBar{display:none!important}
 
 /* ── Загрузка контента из content.json (правится в кабинете admin.html).
       Если файла нет или он битый — работаем на встроенных данных. ── */
+const CFG_API='https://yaya-db-production.up.railway.app';
+
+/* Читаем то, что администратор сохранил в кабинете */
+async function cfgGet(key){
+  const c=new AbortController(), t=setTimeout(()=>c.abort(),8000);
+  try{
+    const r=await fetch(CFG_API+'/kv/'+key,{cache:'no-store',signal:c.signal});
+    if(!r.ok) return null;
+    const j=await r.json();
+    return (j&&j.value&&typeof j.value==='object')?j.value:null;
+  }catch(e){ return null; }
+  finally{ clearTimeout(t); }
+}
+
+function applyRadioCfg(r){
+  if(!r) return;
+  if(r.videoId) RADIO_VIDEO_ID=r.videoId;
+  if(r.title){const ri=document.querySelector('.radio-text i'); if(ri)ri.textContent=r.title;}
+  const pill=document.getElementById('radioPill');
+  if(pill) pill.style.display=r.off?'none':'';
+}
+
 (async function bootstrap(){
   try{
     const r=await fetch('content.json',{cache:'no-store'});
     if(r.ok){
       const c=await r.json();
       if(c && Array.isArray(c.menu) && c.menu.length) MENU=c.menu;
-      if(c && Array.isArray(c.tv)) TV_VIDEOS=c.tv;
-      if(c && c.radio && c.radio.videoId) RADIO_VIDEO_ID=c.radio.videoId;
-      if(c && c.radio && c.radio.title){const ri=document.querySelector('.radio-text i'); if(ri)ri.textContent=c.radio.title;}
+      if(c && Array.isArray(c.tv)) TV_VIDEOS=c.tv.map(v=>({v:v.id||v.v,caption:v.caption,cat:v.cat}));
+      applyRadioCfg(c&&c.radio);
     }
   }catch(e){/* нет content.json — не страшно */}
+
+  /* Кабинет главнее файла: что сохранил админ, то и показываем */
+  const [tv,radio]=await Promise.all([cfgGet('yaya_tv'),cfgGet('yaya_radio')]);
+  if(tv){
+    if(Array.isArray(tv.videos)) TV_VIDEOS=tv.videos;
+    if(Array.isArray(tv.ads))    TV_ADS=tv.ads;
+    if(Number(tv.every)>0)       TV_EVERY=Number(tv.every);
+    tvBuilt=false;
+  }
+  applyRadioCfg(radio);
+
   renderMenu();
   loadYTApi();
 })();
@@ -446,25 +481,38 @@ function navTo(screen,el){if(screen!=='tv')stopTV();showScreen(screen);setNav(el
 const _goCart=window.goCart; window.goCart=function(){stopTV();if(_goCart)_goCart();setNav(document.getElementById('nav-cart'));};
 const _goMenu=window.goMenu; window.goMenu=function(){stopTV();if(_goMenu)_goMenu();setNav(document.getElementById('nav-home'));};
 
-/* ══════════ ТВ: вертикальная лента видео (YouTube) ══════════
-   Впишите сюда ID своих роликов/Shorts. ID — это часть ссылки:
-     youtube.com/shorts/XXXXXXXXXXX   → XXXXXXXXXXX
-     youtu.be/XXXXXXXXXXX             → XXXXXXXXXXX
-     youtube.com/watch?v=XXXXXXXXXXX  → XXXXXXXXXXX
-   Порядок в массиве = порядок в ленте (можно чередовать свои
-   видео и любые другие). Вертикальные Shorts (9:16) смотрятся
-   лучше всего; горизонтальные видео будут с чёрными полосами.
-   Поля: id (обязательно), caption (подпись, необязательно),
-         cat (id категории меню для кнопки, необязательно).
-   Категории: sets, wings, snacks, burgers, doners, pizza,
-              bliny, drinks, coffee, cocktails, mohito,
-              lemonade, sauces                                   */
+/* ══════════ ТВ: вертикальная лента видео ══════════
+   Лента наполняется в кабинете администратора (раздел «Ещё → YaYa TV»)
+   и хранится в /kv/yaya_tv. Здесь остаётся только запасной набор —
+   он показывается, пока админ не сохранил свой первый ролик.
+   Элемент ленты: {v:'YT_ID'} либо {mp4:'https://…/clip.mp4', poster:'…'}
+                  + caption (подпись), cat (категория меню для кнопки).
+   Рекламные ролики владельца лежат отдельно и встают в ленту
+   после каждых TV_EVERY обычных видео.                            */
 let TV_VIDEOS = [
-  {id:'aqz-KE-bpKQ', caption:'Демо-ролик — замените на своё видео', cat:'wings'},
-  {id:'aqz-KE-bpKQ', caption:'Свайп вверх/вниз листает ленту', cat:'pizza'},
+  {v:'aqz-KE-bpKQ', caption:'Демо-ролик — замените его своим в кабинете', cat:'wings'},
+  {v:'aqz-KE-bpKQ', caption:'Свайп вверх/вниз листает ленту', cat:'pizza'},
 ];
+let TV_ADS = [];
+let TV_EVERY = 4;
 
-let tvBuilt=false, tvActive=null, tvMuted=true;
+let tvBuilt=false, tvActive=null, tvMuted=true, TV_LIST=[];
+
+/* Реклама вперемешку с обычными роликами */
+function tvBuildList(){
+  const vids=TV_VIDEOS.filter(function(v){return !v.off && (v.v||v.mp4);});
+  const ads = TV_ADS.filter(function(v){return !v.off && (v.v||v.mp4);});
+  const out=[]; let a=0;
+  vids.forEach(function(v,i){
+    out.push(v);
+    if(ads.length && TV_EVERY>0 && (i+1)%TV_EVERY===0){
+      const ad=ads[a%ads.length]; a++;
+      out.push(Object.assign({},ad,{ad:true}));
+    }
+  });
+  if(!vids.length) ads.forEach(function(ad){out.push(Object.assign({},ad,{ad:true}));});
+  return out;
+}
 
 function openTV(el){
   navTo('tv', el);
@@ -478,22 +526,28 @@ function openTV(el){
   });
 }
 
+function tvEsc(s){return String(s==null?'':s).replace(/[&<>"]/g,function(c){return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c];});}
+
 function buildTV(){
   if(tvBuilt)return;
   const feed=document.getElementById('tvFeed');
-  if(!TV_VIDEOS.length){
-    feed.innerHTML='<div class="tv-empty"><b>YaYa ТВ</b><div>Лента пока пустая. Добавьте ID своих видео с YouTube в массив TV_VIDEOS (в файле index.html) — и они появятся здесь.</div></div>';
+  TV_LIST=tvBuildList();
+  if(!TV_LIST.length){
+    feed.innerHTML='<div class="tv-empty"><b>YaYa ТВ</b><div>Лента пока пустая. Ролики добавляются в кабинете администратора — загляните чуть позже.</div></div>';
     tvBuilt=true; return;
   }
-  feed.innerHTML=TV_VIDEOS.map(function(v,i){
-    return '<div class="tv-slide" data-i="'+i+'" data-id="'+v.id+'">'
-      +'<div class="tv-thumb" style="background-image:url(\'https://i.ytimg.com/vi/'+v.id+'/hqdefault.jpg\')"></div>'
+  feed.innerHTML=TV_LIST.map(function(v,i){
+    const poster=v.poster||(v.v?'https://i.ytimg.com/vi/'+v.v+'/hqdefault.jpg':'');
+    const btn=v.cat?'Заказать':'В меню';
+    return '<div class="tv-slide" data-i="'+i+'">'
+      +'<div class="tv-thumb"'+(poster?' style="background-image:url(\''+tvEsc(poster)+'\')"':'')+'></div>'
       +'<div class="tv-frame"></div>'
       +'<div class="tv-topbar"><div class="tv-logo">Ya<span>Ya</span> ТВ</div>'
       +'<button class="tv-sound" onclick="tvToggleSound(event)"><svg><use href="#ic-mute"/></svg>Звук</button></div>'
       +'<div class="tv-overlay">'
-      +(v.caption?'<div class="tv-caption">'+v.caption+'</div>':'')
-      +'<button class="tv-cta" onclick="tvGoOrder(\''+(v.cat||'')+'\')"><svg><use href="#ic-cart"/></svg>'+(v.cat?'Заказать':'В меню')+'</button>'
+      +(v.ad?'<div class="tv-ad">Реклама</div>':'')
+      +(v.caption?'<div class="tv-caption">'+tvEsc(v.caption)+'</div>':'')
+      +'<button class="tv-cta" onclick="tvGoOrder(\''+tvEsc(v.cat||'')+'\')"><svg><use href="#ic-cart"/></svg>'+btn+'</button>'
       +'</div></div>';
   }).join('');
   const io=new IntersectionObserver(function(entries){
@@ -503,20 +557,36 @@ function buildTV(){
   tvBuilt=true;
 }
 
+/* Плеер подставляется только в видимый слайд: десятки iframe убьют телефон */
 function activateSlide(slide){
   if(tvActive===slide)return;
   if(tvActive){const pf=tvActive.querySelector('.tv-frame'); if(pf)pf.innerHTML='';}
   tvActive=slide;
-  const id=slide.dataset.id, frame=slide.querySelector('.tv-frame'), mute=tvMuted?1:0;
-  frame.innerHTML='<iframe src="https://www.youtube.com/embed/'+id
-    +'?autoplay=1&mute='+mute+'&controls=0&playsinline=1&rel=0&modestbranding=1&loop=1&playlist='+id
-    +'&enablejsapi=1" allow="autoplay; encrypted-media" allowfullscreen></iframe>';
+  const v=TV_LIST[Number(slide.dataset.i)]||{};
+  const frame=slide.querySelector('.tv-frame');
+  if(v.mp4){
+    frame.innerHTML='<video class="tv-video" src="'+tvEsc(v.mp4)+'" autoplay loop playsinline webkit-playsinline'
+      +(tvMuted?' muted':'')+(v.poster?' poster="'+tvEsc(v.poster)+'"':'')+'></video>';
+    const el=frame.querySelector('video');
+    el.muted=tvMuted;
+    el.play().catch(function(){ el.muted=true; tvMuted=true; updateSoundBtns(); el.play().catch(function(){}); });
+  } else {
+    const id=v.v, mute=tvMuted?1:0;
+    frame.innerHTML='<iframe src="https://www.youtube.com/embed/'+id
+      +'?autoplay=1&mute='+mute+'&controls=0&playsinline=1&rel=0&modestbranding=1&loop=1&playlist='+id
+      +'&enablejsapi=1" allow="autoplay; encrypted-media" allowfullscreen></iframe>';
+  }
   updateSoundBtns();
 }
 
 function tvToggleSound(ev){
   if(ev)ev.stopPropagation();
   tvMuted=!tvMuted;
+  const video=tvActive&&tvActive.querySelector('video');
+  if(video){
+    video.muted=tvMuted;
+    if(!tvMuted){video.volume=1;video.play().catch(function(){});}
+  }
   const iframe=tvActive&&tvActive.querySelector('iframe');
   if(iframe&&iframe.contentWindow){
     iframe.contentWindow.postMessage(JSON.stringify({event:'command',func:tvMuted?'mute':'unMute',args:[]}),'*');
@@ -541,6 +611,7 @@ function stopTV(){
   document.body.classList.remove('tv-open');
   if(tvActive){const f=tvActive.querySelector('.tv-frame'); if(f)f.innerHTML=''; tvActive=null;}
 }
+
 (function(){const src=document.getElementById('cartCount'),b=document.getElementById('navCartBadge');
   function s(){const n=parseInt(src.textContent)||0;b.textContent=n;b.classList.toggle('show',n>0);}
   new MutationObserver(s).observe(src,{childList:true,characterData:true,subtree:true});s();})();
@@ -737,7 +808,7 @@ if(window.navTo){ const _navTo=window.navTo; window.navTo=function(screen,el){ _
 })();
 
 /* ── РАДИО (YouTube, включается одним касанием) ── */
-const RADIO_VIDEO_ID='2Hz-3imnsWc';
+let RADIO_VIDEO_ID='2Hz-3imnsWc';
 let ytPlayer=null,ytReady=false,radioOn=false,radioMuted=false,radioAutoMuted=false;
 
 function loadYTApi(){
