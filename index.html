@@ -1007,43 +1007,52 @@ async function sendGreetReq(){
   }
 }
 
-/* Запись в общий список заявок. Раньше отправка считалась неудачной,
-   если сразу после записи сервер отдавал ещё старый список — заявка
-   при этом уже лежала в базе, а человек видел ошибку и слал повтор.
-   Теперь успехом считаем сам ответ сервера, а перечитывание — только
-   подсказка. Плюс запасные форматы запроса и таймаут.            */
+/* Запись в общий список заявок. Формат тот же, что использует кабинет
+   (тело запроса = само значение) — другие варианты не пробуем, чтобы
+   не испортить ключ. Успех подтверждаем перечитыванием, но неудачное
+   перечитывание не считаем провалом: сервер иногда отдаёт список с
+   задержкой, а человек в этот момент видел ошибку и слал дубли.   */
 async function greetReqPush(req){
   const url=CFG_API+'/kv/yaya_greet_req';
   let list=[];
   try{
     const cur=await cfgGet('yaya_greet_req');
-    if(Array.isArray(cur)) list=cur.slice();
+    const l=greetReqList(cur);
+    if(l) list=l.slice();
     if(list.some(function(x){return x&&x.id===req.id;})) return {ok:true};
   }catch(e){}
   list.push(req);
-  const tries=[
-    {m:'PUT',  b:JSON.stringify(list)},
-    {m:'PUT',  b:JSON.stringify({value:list})},
-    {m:'POST', b:JSON.stringify(list)}
-  ];
-  let last='нет связи';
-  for(let i=0;i<tries.length;i++){
+  let last='нет связи', sent=false;
+  for(let i=0;i<3&&!sent;i++){
     const c=new AbortController(), t=setTimeout(function(){c.abort();},12000);
     try{
-      const r=await fetch(url,{method:tries[i].m,headers:{'Content-Type':'application/json'},
-                              body:tries[i].b,signal:c.signal});
-      if(r.ok) return {ok:true};
-      last='код '+r.status;
+      const r=await fetch(url,{method:'PUT',headers:{'Content-Type':'application/json'},
+                              body:JSON.stringify(list),signal:c.signal});
+      if(r.ok) sent=true; else last='код '+r.status;
     }catch(e){ last=(e&&e.name==='AbortError')?'сервер не ответил':'нет связи'; }
     finally{ clearTimeout(t); }
+    if(!sent) await new Promise(function(r2){setTimeout(r2,900);});
   }
+  if(sent) return {ok:true};
   /* сервер мог принять запись и всё же ответить ошибкой — проверяем */
-  try{
-    const check=await cfgGet('yaya_greet_req');
-    if(Array.isArray(check)&&check.some(function(x){return x&&x.id===req.id;})) return {ok:true};
-  }catch(e){}
+  const chk=greetReqList(await cfgGet('yaya_greet_req'));
+  if(chk&&chk.some(function(x){return x&&x.id===req.id;})) return {ok:true};
   return {ok:false, err:last};
 }
+/* список заявок может прийти массивом или обёрткой — разбираем оба */
+function greetReqList(v){
+  if(Array.isArray(v)) return v;
+  if(v&&Array.isArray(v.value)) return v.value;
+  if(v&&Array.isArray(v.requests)) return v.requests;
+  return null;
+}
+/* Проверка: что сейчас реально лежит на сервере */
+window.yayaReqCheck=async function(){
+  const l=greetReqList(await cfgGet('yaya_greet_req'));
+  console.log(l?('заявок на сервере: '+l.length):'сервер не отдал список');
+  if(l) console.table(l.map(function(r){return {кому:r.to, от:r.from, телефон:r.phone, когда:r.when, статус:r.status};}));
+  return l;
+};
 
 /* Неотправленные заявки ждут в телефоне и уходят при следующей связи */
 function greetOutboxAdd(req){
