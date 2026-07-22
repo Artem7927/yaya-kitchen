@@ -60,6 +60,32 @@ body{max-width:480px;margin:0 auto;min-height:100vh;padding-bottom:76px;overflow
 .radio-mute{display:none;align-items:center;justify-content:center;background:transparent;border:none;border-left:1px solid var(--border);color:#cfccc6;padding:8px 11px;cursor:pointer}
 .radio-mute svg{width:18px;height:18px;display:block;fill:currentColor}
 .radio.on .radio-mute{display:flex}
+.radio-gift{display:flex;align-items:center;justify-content:center;background:transparent;border:none;
+  border-left:1px solid var(--border);color:var(--gold);padding:8px 11px;cursor:pointer}
+.radio-gift svg{width:17px;height:17px;stroke:currentColor;fill:none;stroke-width:1.8;stroke-linecap:round;stroke-linejoin:round}
+#greetBanner{position:fixed;left:50%;transform:translate(-50%,-70px);top:10px;z-index:80;display:flex;align-items:center;gap:9px;
+  background:rgba(244,180,0,.95);color:#1a1400;font-weight:900;font-size:13px;padding:10px 16px;border-radius:999px;
+  box-shadow:0 8px 24px rgba(0,0,0,.45);transition:transform .3s ease;white-space:nowrap}
+#greetBanner.on{transform:translate(-50%,0)}
+#greetBanner .gb-eq{display:inline-flex;align-items:flex-end;gap:2.5px;height:14px}
+#greetBanner .gb-eq i{width:3px;height:5px;background:#1a1400;border-radius:2px;animation:gbq .8s ease-in-out infinite}
+#greetBanner .gb-eq i:nth-child(2){animation-delay:.16s}
+#greetBanner .gb-eq i:nth-child(3){animation-delay:.32s}
+@keyframes gbq{0%,100%{height:4px}50%{height:13px}}
+.gsheet{position:fixed;inset:0;z-index:95;background:rgba(0,0,0,.72);display:none;align-items:flex-end;justify-content:center}
+.gsheet.open{display:flex}
+.gsheet .gs-in{width:100%;max-width:480px;max-height:92vh;overflow-y:auto;background:var(--bg,#0e0d0b);
+  border-radius:20px 20px 0 0;padding:20px 0 26px;border-top:1px solid rgba(255,255,255,.1)}
+.gsheet h3{font-family:'Bebas Neue',sans-serif;font-size:24px;letter-spacing:.6px;padding:0 18px 4px;margin:0;color:#fff}
+.gsheet .gs-sub{padding:0 18px 14px;font-size:13px;color:#a8a49c;font-weight:700;line-height:1.5}
+.gsheet label{display:block;font-size:12px;font-weight:800;color:#a8a49c;margin:0 18px 6px}
+.gsheet input,.gsheet textarea{width:calc(100% - 36px);margin:0 18px 13px;background:rgba(255,255,255,.05);
+  border:1px solid rgba(255,255,255,.12);color:#fff;border-radius:12px;padding:13px;font-size:15px;font-weight:700;font-family:inherit}
+.gsheet textarea{resize:vertical;min-height:78px}
+.gs-row{display:flex;gap:10px;padding:4px 18px 0}
+.gs-row button{flex:1;border:none;border-radius:13px;padding:15px;font-weight:900;font-size:15px;font-family:inherit}
+.gs-row .gs-ok{background:var(--gold,#F4B400);color:#1a1400}
+.gs-row .gs-no{background:rgba(255,255,255,.07);color:#cfccc6}
 .radio.on.muted .radio-mute{color:#666}
 #ytRadio{position:fixed;width:1px;height:1px;left:-9999px;top:-9999px;opacity:0;pointer-events:none}
 
@@ -245,6 +271,9 @@ body.tv-open #cartBar{display:none!important}
         <span class="radio-text"><b>РАДИО</b><i>YaYa</i></span>
       </button>
       <button class="radio-mute" id="radioMuteBtn" onclick="radioMute()" aria-label="Звук"></button>
+      <button class="radio-gift" onclick="openGreetForm()" aria-label="Заказать поздравление" title="Заказать поздравление">
+        <svg viewBox="0 0 24 24"><rect x="3" y="9" width="18" height="12" rx="2"/><path d="M3 13h18M12 9v12"/><path d="M12 9C10.5 5.5 8 4 6.8 5.2 5.6 6.4 7.5 8.6 12 9zM12 9c1.5-3.5 4-5 5.2-3.8 1.2 1.2-.7 3.4-5.2 3.8z"/></svg>
+      </button>
     </div>
   </div>
 
@@ -445,6 +474,7 @@ async function cfgGet(key){
 
 function applyRadioCfg(r){
   if(!r) return;
+  if(Array.isArray(r.greetings)) GREETINGS=r.greetings;
   if(r.videoId) RADIO_VIDEO_ID=r.videoId;
   if(r.title){const ri=document.querySelector('.radio-text i'); if(ri)ri.textContent=r.title;}
   const pill=document.getElementById('radioPill');
@@ -911,6 +941,158 @@ if(window.navTo){ const _navTo=window.navTo; window.navTo=function(screen,el){ _
   start();
 })();
 
+/* ── ЗАКАЗ ПОЗДРАВЛЕНИЯ ───────────────────────────────────
+   Заявка уходит в тот же ключ, который читает админ. Пишем
+   методом «прочитал — дополнил — записал», после записи
+   перечитываем и, если заявка потерялась из-за одновременной
+   отправки, повторяем один раз.                            */
+function openGreetForm(){
+  let s=document.getElementById('greetSheet');
+  if(!s){
+    s=document.createElement('div');
+    s.id='greetSheet'; s.className='gsheet';
+    s.onclick=function(e){ if(e.target===s) closeGreetForm(); };
+    s.innerHTML='<div class="gs-in">'
+      +'<h3>Поздравление в эфире</h3>'
+      +'<div class="gs-sub">Мы запишем ваше поздравление и поставим его в эфир YaYa Radio. Его услышат все, кто слушает нас в этот момент.</div>'
+      +'<label>Кого поздравляем</label><input id="gfTo" maxlength="60" placeholder="Айгуль, 30 лет">'
+      +'<label>От кого</label><input id="gfFrom" maxlength="60" placeholder="Ваше имя">'
+      +'<label>Что сказать в эфире</label><textarea id="gfText" maxlength="400" placeholder="С днём рождения! Пусть всё получается…"></textarea>'
+      +'<label>Когда хотите услышать</label><input id="gfWhen" type="datetime-local">'
+      +'<label>Телефон для связи</label><input id="gfPhone" type="tel" inputmode="tel" maxlength="20" placeholder="+7 ___ ___ __ __">'
+      +'<div class="gs-row"><button class="gs-no" onclick="closeGreetForm()">Отмена</button>'
+      +'<button class="gs-ok" id="gfSend" onclick="sendGreetReq()">Отправить</button></div>'
+      +'</div>';
+    document.body.appendChild(s);
+  }
+  s.classList.add('open');
+}
+function closeGreetForm(){
+  const s=document.getElementById('greetSheet');
+  if(s) s.classList.remove('open');
+}
+async function sendGreetReq(){
+  const g=id=>{const e=document.getElementById(id);return e?e.value.trim():'';};
+  const to=g('gfTo'), phone=g('gfPhone');
+  const btn=document.getElementById('gfSend');
+  if(!to){ alert('Напишите, кого поздравляем'); return; }
+  if(phone.replace(/\D/g,'').length<10){ alert('Оставьте телефон — мы перезвоним, чтобы записать поздравление'); return; }
+  const req={id:'r'+Date.now()+Math.floor(Math.random()*1000), to:to, from:g('gfFrom'),
+             text:g('gfText'), when:g('gfWhen'), phone:phone, ts:Date.now(), status:'new'};
+  btn.disabled=true; btn.textContent='Отправляю…';
+  const ok=await greetReqPush(req) || await greetReqPush(req);
+  btn.disabled=false; btn.textContent='Отправить';
+  if(ok){
+    closeGreetForm();
+    alert('Заявка принята. Мы позвоним вам, чтобы записать поздравление.');
+    ['gfTo','gfFrom','gfText','gfWhen','gfPhone'].forEach(function(k){
+      const e=document.getElementById(k); if(e)e.value='';
+    });
+  } else alert('Не получилось отправить. Проверьте интернет и попробуйте ещё раз.');
+}
+async function greetReqPush(req){
+  try{
+    const cur=await cfgGet('yaya_greet_req');
+    const list=Array.isArray(cur)?cur.slice():[];
+    if(list.some(function(x){return x&&x.id===req.id;})) return true;
+    list.push(req);
+    const r=await fetch(CFG_API+'/kv/yaya_greet_req',{method:'PUT',
+      headers:{'Content-Type':'application/json'}, body:JSON.stringify(list)});
+    if(!r.ok) return false;
+    const check=await cfgGet('yaya_greet_req');
+    return Array.isArray(check) && check.some(function(x){return x&&x.id===req.id;});
+  }catch(e){ return false; }
+}
+
+/* ── ПОЗДРАВЛЕНИЯ В ЭФИРЕ ──────────────────────────────────
+   Администратор ставит запись на время. Пока радио играет,
+   витрина раз в 15 секунд смотрит расписание: когда время
+   подошло — музыка приглушается, звучит поздравление, затем
+   громкость возвращается. Уже прозвучавшие помним локально,
+   чтобы одно и то же не повторялось при обновлении страницы. */
+let GREETINGS=[], greetEl=null, greetBusy=false, greetTimer=null;
+
+/* Телефон разрешает звук только после касания. Поэтому в момент,
+   когда человек включает радио, «прогреваем» плеер тишиной —
+   дальше поздравление запустится уже без запрета.               */
+const SILENCE='data:audio/wav;base64,UklGRiQAAABXQVZFZm10IBAAAAABAAEAgD4AAAB9AAACABAAZGF0YQAAAAA=';
+function greetUnlock(){
+  if(greetEl) return;
+  try{
+    greetEl=new Audio(SILENCE);
+    greetEl.preload='auto';
+    const p=greetEl.play();
+    if(p&&p.catch) p.catch(function(){});
+  }catch(e){ greetEl=null; }
+}
+
+function nowLocalStr(){
+  const d=new Date(), z=n=>String(n).padStart(2,'0');
+  return d.getFullYear()+'-'+z(d.getMonth()+1)+'-'+z(d.getDate())+'T'+z(d.getHours())+':'+z(d.getMinutes());
+}
+function greetPlayed(id){
+  try{ return (localStorage.getItem('yaya_greet_done')||'').split(',').indexOf(id)>=0; }catch(e){ return false; }
+}
+function greetMarkPlayed(id){
+  try{
+    const l=(localStorage.getItem('yaya_greet_done')||'').split(',').filter(Boolean);
+    l.push(id); localStorage.setItem('yaya_greet_done',l.slice(-60).join(','));
+  }catch(e){}
+}
+/* Подходит, если время наступило не больше двух минут назад */
+function greetDue(g){
+  if(!g||g.off||!g.audio||!g.at) return false;
+  const id=g.id||g.at+'|'+g.audio;
+  if(greetPlayed(id)) return false;
+  const now=nowLocalStr();
+  if(g.at>now) return false;
+  return (new Date(now.replace('T',' ').replace(/-/g,'/')) - new Date(String(g.at).replace('T',' ').replace(/-/g,'/'))) <= 120000;
+}
+function greetTick(){
+  if(greetBusy||!radioOn||!GREETINGS.length) return;
+  const g=GREETINGS.find(greetDue);
+  if(g) greetPlay(g);
+}
+function greetPlay(g){
+  greetBusy=true;
+  greetMarkPlayed(g.id||g.at+'|'+g.audio);
+  let prevVol=60;
+  try{ prevVol=ytPlayer.getVolume(); ytPlayer.setVolume(8); }catch(e){}
+  greetBanner(true);
+  if(!greetEl) greetEl=new Audio();
+  const back=function(){
+    try{ ytPlayer.setVolume(prevVol||60); }catch(e){}
+    greetBanner(false); greetBusy=false;
+  };
+  greetEl.onended=back;
+  greetEl.onerror=back;
+  greetEl.src=g.audio;
+  greetEl.volume=1;
+  const p=greetEl.play();
+  if(p&&p.catch) p.catch(back);
+  /* если запись длинная или не доиграла — страхуемся по времени */
+  setTimeout(function(){ if(greetBusy) back(); },180000);
+}
+function greetBanner(on){
+  let b=document.getElementById('greetBanner');
+  if(on){
+    if(!b){
+      b=document.createElement('div'); b.id='greetBanner';
+      b.innerHTML='<span class="gb-eq"><i></i><i></i><i></i></span><span>Поздравление в эфире</span>';
+      document.body.appendChild(b);
+    }
+    requestAnimationFrame(function(){b.classList.add('on');});
+  } else if(b){ b.classList.remove('on'); }
+}
+function greetStart(){
+  if(greetTimer) return;
+  greetTimer=setInterval(greetTick,15000);
+  setInterval(async function(){       /* подтягиваем свежее расписание */
+    const r=await cfgGet('yaya_radio');
+    if(r&&Array.isArray(r.greetings)) GREETINGS=r.greetings;
+  },180000);
+}
+
 /* ── РАДИО (YouTube, включается одним касанием) ── */
 let RADIO_VIDEO_ID='2Hz-3imnsWc';
 let ytPlayer=null,ytReady=false,radioOn=false,radioMuted=false,radioAutoMuted=false;
@@ -930,7 +1112,7 @@ window.onYouTubeIframeAPIReady=function(){
         if(radioPending){radioPending=false;restoreRadio();}
       },
       onStateChange:function(e){
-        if(e.data===YT.PlayerState.PLAYING){radioOn=true;applyRadioUI();}
+        if(e.data===YT.PlayerState.PLAYING){radioOn=true;applyRadioUI();greetStart();}
         else if(e.data===YT.PlayerState.PAUSED){radioOn=false;applyRadioUI();}
       },
       onError:function(){radioOn=false;applyRadioUI();}
@@ -950,9 +1132,10 @@ function restoreRadio(){
 function radioStart(){
   radioAutoMuted=false;radioMuted=false;
   try{ytPlayer.unMute();ytPlayer.setVolume(60);ytPlayer.playVideo();}catch(e){}
-  radioOn=true;applyRadioUI();
+  radioOn=true;applyRadioUI();greetUnlock();greetStart();
 }
 function radioToggle(){
+  greetUnlock();                       /* пока касание ещё «свежее» */
   if(!ytReady){radioPending=true;var p=document.getElementById('radioPill');if(p)p.classList.add('on');return;}
   if(radioOn){
     try{ytPlayer.pauseVideo();}catch(e){}radioOn=false;
