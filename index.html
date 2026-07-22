@@ -496,21 +496,24 @@ let TV_VIDEOS = [
 let TV_ADS = [];
 let TV_EVERY = 4;
 
-let tvBuilt=false, tvActive=null, tvMuted=true, TV_LIST=[];
+let tvBuilt=false, tvActive=null, tvMuted=true;
 
-/* Реклама вперемешку с обычными роликами */
-function tvBuildList(){
-  const vids=TV_VIDEOS.filter(function(v){return !v.off && (v.v||v.mp4);});
-  const ads = TV_ADS.filter(function(v){return !v.off && (v.v||v.mp4);});
-  const out=[]; let a=0;
+/* Один проход ленты: ролики + реклама после каждых TV_EVERY видео.
+   Счётчик рекламы сквозной, поэтому на втором круге показывается
+   следующий рекламный ролик, а не тот же самый.                  */
+let tvAdCursor=0;
+function tvCycle(){
+  const ok=function(v){return !v.off && (v.v||v.mp4);};
+  const vids=TV_VIDEOS.filter(ok), ads=TV_ADS.filter(ok);
+  const out=[];
+  if(!vids.length){ ads.forEach(function(ad){out.push(Object.assign({},ad,{ad:true}));}); return out; }
   vids.forEach(function(v,i){
     out.push(v);
     if(ads.length && TV_EVERY>0 && (i+1)%TV_EVERY===0){
-      const ad=ads[a%ads.length]; a++;
-      out.push(Object.assign({},ad,{ad:true}));
+      out.push(Object.assign({},ads[tvAdCursor%ads.length],{ad:true}));
+      tvAdCursor++;
     }
   });
-  if(!vids.length) ads.forEach(function(ad){out.push(Object.assign({},ad,{ad:true}));});
   return out;
 }
 
@@ -528,32 +531,71 @@ function openTV(el){
 
 function tvEsc(s){return String(s==null?'':s).replace(/[&<>"]/g,function(c){return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c];});}
 
+function slideHTML(v){
+  const poster=v.poster||(v.v?'https://i.ytimg.com/vi/'+v.v+'/hqdefault.jpg':'');
+  const btn=v.cat?'Заказать':'В меню';
+  return '<div class="tv-thumb"'+(poster?' style="background-image:url(\''+tvEsc(poster)+'\')"':'')+'></div>'
+    +'<div class="tv-frame"></div>'
+    +'<div class="tv-topbar"><div class="tv-logo">Ya<span>Ya</span> ТВ</div>'
+    +'<button class="tv-sound" onclick="tvToggleSound(event)"><svg><use href="#ic-mute"/></svg>Звук</button></div>'
+    +'<div class="tv-overlay">'
+    +(v.ad?'<div class="tv-ad">Реклама</div>':'')
+    +(v.caption?'<div class="tv-caption">'+tvEsc(v.caption)+'</div>':'')
+    +'<button class="tv-cta" onclick="tvGoOrder(\''+tvEsc(v.cat||'')+'\')"><svg><use href="#ic-cart"/></svg>'+btn+'</button>'
+    +'</div>';
+}
+
+/* Дописываем ещё один круг в конец — лента не заканчивается никогда */
+const TV_MAX_SLIDES=90;
+let tvIO=null;
+function tvAppendCycle(){
+  const feed=document.getElementById('tvFeed');
+  const items=tvCycle();
+  if(!items.length) return 0;
+  const frag=document.createDocumentFragment();
+  items.forEach(function(v){
+    const s=document.createElement('div');
+    s.className='tv-slide';
+    s.innerHTML=slideHTML(v);
+    s.__item=v;                 /* данные держим на самом слайде, без индексов */
+    frag.appendChild(s);
+    if(tvIO) tvIO.observe(s);
+  });
+  feed.appendChild(frag);
+  return items.length;
+}
+
+/* Чтобы память не росла бесконечно, старые слайды сверху убираем,
+   а прокрутку сдвигаем ровно на их высоту — рывка не видно.      */
+function tvTrim(){
+  const feed=document.getElementById('tvFeed');
+  const extra=feed.children.length-TV_MAX_SLIDES;
+  if(extra<=0) return;
+  let shift=0;
+  for(let k=0;k<extra;k++){
+    const first=feed.firstElementChild;
+    if(!first||first===tvActive) break;
+    shift+=first.offsetHeight||feed.clientHeight;
+    if(tvIO) tvIO.unobserve(first);
+    feed.removeChild(first);
+  }
+  if(shift) feed.scrollTop=Math.max(0,feed.scrollTop-shift);
+}
+
 function buildTV(){
   if(tvBuilt)return;
   const feed=document.getElementById('tvFeed');
-  TV_LIST=tvBuildList();
-  if(!TV_LIST.length){
+  feed.innerHTML='';
+  tvAdCursor=0;
+  tvIO=new IntersectionObserver(function(entries){
+    entries.forEach(function(e){ if(e.isIntersecting && e.intersectionRatio>=0.6) activateSlide(e.target); });
+  },{root:feed, threshold:[0,0.6,1]});
+  const n=tvAppendCycle();
+  if(!n){
     feed.innerHTML='<div class="tv-empty"><b>YaYa ТВ</b><div>Лента пока пустая. Ролики добавляются в кабинете администратора — загляните чуть позже.</div></div>';
     tvBuilt=true; return;
   }
-  feed.innerHTML=TV_LIST.map(function(v,i){
-    const poster=v.poster||(v.v?'https://i.ytimg.com/vi/'+v.v+'/hqdefault.jpg':'');
-    const btn=v.cat?'Заказать':'В меню';
-    return '<div class="tv-slide" data-i="'+i+'">'
-      +'<div class="tv-thumb"'+(poster?' style="background-image:url(\''+tvEsc(poster)+'\')"':'')+'></div>'
-      +'<div class="tv-frame"></div>'
-      +'<div class="tv-topbar"><div class="tv-logo">Ya<span>Ya</span> ТВ</div>'
-      +'<button class="tv-sound" onclick="tvToggleSound(event)"><svg><use href="#ic-mute"/></svg>Звук</button></div>'
-      +'<div class="tv-overlay">'
-      +(v.ad?'<div class="tv-ad">Реклама</div>':'')
-      +(v.caption?'<div class="tv-caption">'+tvEsc(v.caption)+'</div>':'')
-      +'<button class="tv-cta" onclick="tvGoOrder(\''+tvEsc(v.cat||'')+'\')"><svg><use href="#ic-cart"/></svg>'+btn+'</button>'
-      +'</div></div>';
-  }).join('');
-  const io=new IntersectionObserver(function(entries){
-    entries.forEach(function(e){ if(e.isIntersecting && e.intersectionRatio>=0.6) activateSlide(e.target); });
-  },{root:feed, threshold:[0,0.6,1]});
-  feed.querySelectorAll('.tv-slide').forEach(function(s){io.observe(s);});
+  tvAppendCycle();          /* второй круг сразу, чтобы конец не мелькал */
   tvBuilt=true;
 }
 
@@ -562,7 +604,7 @@ function activateSlide(slide){
   if(tvActive===slide)return;
   if(tvActive){const pf=tvActive.querySelector('.tv-frame'); if(pf)pf.innerHTML='';}
   tvActive=slide;
-  const v=TV_LIST[Number(slide.dataset.i)]||{};
+  const v=slide.__item||{};
   const frame=slide.querySelector('.tv-frame');
   if(v.mp4){
     frame.innerHTML='<video class="tv-video" src="'+tvEsc(v.mp4)+'" autoplay loop playsinline webkit-playsinline'
@@ -570,13 +612,18 @@ function activateSlide(slide){
     const el=frame.querySelector('video');
     el.muted=tvMuted;
     el.play().catch(function(){ el.muted=true; tvMuted=true; updateSoundBtns(); el.play().catch(function(){}); });
-  } else {
+  } else if(v.v){
     const id=v.v, mute=tvMuted?1:0;
     frame.innerHTML='<iframe src="https://www.youtube.com/embed/'+id
       +'?autoplay=1&mute='+mute+'&controls=0&playsinline=1&rel=0&modestbranding=1&loop=1&playlist='+id
       +'&enablejsapi=1" allow="autoplay; encrypted-media" allowfullscreen></iframe>';
   }
   updateSoundBtns();
+
+  /* Осталось меньше трёх слайдов впереди — дописываем следующий круг */
+  let ahead=0, n=slide;
+  while((n=n.nextElementSibling) && ahead<3) ahead++;
+  if(ahead<3){ tvAppendCycle(); tvTrim(); }
 }
 
 function tvToggleSound(ev){
