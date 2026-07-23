@@ -862,19 +862,25 @@ async function renderOrders(){
     box.innerHTML='<div class="empty-state"><svg><use href="#ic-orders"/></svg><div>Заказов пока нет</div><div style="font-size:13px;margin-top:6px;font-weight:600">Оформите первый заказ в меню</div></div>';
     trackSig=''; return;
   }
-  let server=[],cour={},pos={};
-  try{ const j=await trackGet('/orders?limit=100'); server=j.orders||[]; }catch(e){}
-  try{ const j=await trackGet('/kv/'+T_COUR); if(j.value&&typeof j.value==='object')cour=j.value; }catch(e){}
+  /* Раньше сюда скачивались последние 100 заказов заведения целиком —
+     с чужими именами, телефонами и адресами — и нужный искался уже
+     в браузере. Теперь спрашиваем статус только своих номеров.     */
+  let server=[],pos={};
+  const nums=local.map(o=>o.num).filter(n=>n!==undefined&&n!==null).slice(-50);
+  if(nums.length){
+    try{ const j=await trackGet('/orders/status?nums='+encodeURIComponent(nums.join(','))); server=j.orders||[]; }catch(e){}
+  }
   try{ const j=await trackGet('/kv/'+T_POS); if(j.value&&typeof j.value==='object')pos=j.value; }catch(e){}
   const byNum={};
-  server.forEach(o=>{ const c=cour[o.id]; if(c){o.courier=c.courier;o.delivery_status=c.delivery_status;} byNum[String(o.num)]=o; });
+  server.forEach(o=>{ byNum[String(o.num)]=o; });
   const view=local.slice().reverse().map(lo=>{
-    const s=byNum[String(lo.num)]; const d=(s&&s.data)||{};
+    const s=byNum[String(lo.num)];
+    const srvSum=s?((Number(s.total)||0)+(Number(s.delivery)||0)):0;
     return {num:lo.num,date:lo.date||'',
-      total:(Number(d.total)||lo.total||0)+(Number(d.delivery)||lo.delivery||0),
+      total:srvSum||((Number(lo.total)||0)+(Number(lo.delivery)||0)),
       status:s?(s.status||'new'):'new',
       delivery_status:s?(s.delivery_status||'pending'):'pending',
-      courier:s?(s.courier||''):'', address:(d.address||lo.address||'')};
+      courier:s?(s.courier||''):'', address:(lo.address||'')};
   });
   const sig=view.map(v=>v.num+':'+v.status+':'+v.delivery_status+':'+v.courier).join('|');
   if(sig!==trackSig){
@@ -1007,52 +1013,27 @@ async function sendGreetReq(){
   }
 }
 
-/* Запись в общий список заявок. Формат тот же, что использует кабинет
-   (тело запроса = само значение) — другие варианты не пробуем, чтобы
-   не испортить ключ. Успех подтверждаем перечитыванием, но неудачное
-   перечитывание не считаем провалом: сервер иногда отдаёт список с
-   задержкой, а человек в этот момент видел ошибку и слал дубли.   */
+/* Заявка дописывается в конец списка одной командой на стороне сервера.
+   Раньше витрина читала весь список, добавляла себя и клала обратно —
+   две заявки в одну секунду затирали друг друга, а список с чужими
+   телефонами был виден любому. Теперь витрина его вообще не читает. */
 async function greetReqPush(req){
-  const url=CFG_API+'/kv/yaya_greet_req';
-  let list=[];
-  try{
-    const cur=await cfgGet('yaya_greet_req');
-    const l=greetReqList(cur);
-    if(l) list=l.slice();
-    if(list.some(function(x){return x&&x.id===req.id;})) return {ok:true};
-  }catch(e){}
-  list.push(req);
-  let last='нет связи', sent=false;
-  for(let i=0;i<3&&!sent;i++){
+  const url=CFG_API+'/kv/yaya_greet_req/append';
+  let last='нет связи';
+  for(let i=0;i<3;i++){
     const c=new AbortController(), t=setTimeout(function(){c.abort();},12000);
     try{
-      const r=await fetch(url,{method:'PUT',headers:{'Content-Type':'application/json'},
-                              body:JSON.stringify(list),signal:c.signal});
-      if(r.ok) sent=true; else last='код '+r.status;
+      const r=await fetch(url,{method:'POST',headers:{'Content-Type':'application/json'},
+                              body:JSON.stringify({item:req}),signal:c.signal});
+      if(r.ok) return {ok:true};
+      last=(r.status===429)?'слишком часто, подождите минуту':('код '+r.status);
+      if(r.status===429||r.status===400||r.status===413) break;
     }catch(e){ last=(e&&e.name==='AbortError')?'сервер не ответил':'нет связи'; }
     finally{ clearTimeout(t); }
-    if(!sent) await new Promise(function(r2){setTimeout(r2,900);});
+    await new Promise(function(r2){setTimeout(r2,900);});
   }
-  if(sent) return {ok:true};
-  /* сервер мог принять запись и всё же ответить ошибкой — проверяем */
-  const chk=greetReqList(await cfgGet('yaya_greet_req'));
-  if(chk&&chk.some(function(x){return x&&x.id===req.id;})) return {ok:true};
   return {ok:false, err:last};
 }
-/* список заявок может прийти массивом или обёрткой — разбираем оба */
-function greetReqList(v){
-  if(Array.isArray(v)) return v;
-  if(v&&Array.isArray(v.value)) return v.value;
-  if(v&&Array.isArray(v.requests)) return v.requests;
-  return null;
-}
-/* Проверка: что сейчас реально лежит на сервере */
-window.yayaReqCheck=async function(){
-  const l=greetReqList(await cfgGet('yaya_greet_req'));
-  console.log(l?('заявок на сервере: '+l.length):'сервер не отдал список');
-  if(l) console.table(l.map(function(r){return {кому:r.to, от:r.from, телефон:r.phone, когда:r.when, статус:r.status};}));
-  return l;
-};
 
 /* Неотправленные заявки ждут в телефоне и уходят при следующей связи */
 function greetOutboxAdd(req){
