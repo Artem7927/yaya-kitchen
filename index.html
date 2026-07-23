@@ -145,7 +145,14 @@ body.gsheet-lock{overflow:hidden}
 .items-grid{display:grid;grid-template-columns:1fr 1fr;gap:10px}
 .item-card{background:var(--panel);border-radius:16px;overflow:hidden;border:1px solid var(--border);transition:transform .1s}
 .item-card:active{transform:scale(.97)}
-.item-img-placeholder{width:100%;aspect-ratio:1;background:linear-gradient(135deg,#2a2622,#1b1917);display:flex;align-items:center;justify-content:center;position:relative}
+/* Название раздела не нужно: активная категория и так подсвечена сверху */
+#menu-content .section-title{display:none}
+.item-img-placeholder{width:100%;aspect-ratio:1;background:linear-gradient(135deg,#2a2622,#1b1917);display:flex;align-items:center;justify-content:center;position:relative;background-size:cover;background-position:center}
+/* когда у товара есть фото — подпись YaYa убираем */
+.item-img-placeholder.has-img::after{content:none}
+.item-card.is-off,.item-wide.is-off{opacity:.45}
+.item-card.is-off .btn-add,.item-wide.is-off .btn-add{display:none}
+.soldout{font:800 11px Nunito,sans-serif;color:#ff8f6a;margin-top:2px}
 .item-img-placeholder::after{content:'YaYa';font-family:'Bebas Neue',sans-serif;font-size:22px;letter-spacing:1px;color:rgba(244,180,0,.30)}
 .item-info{padding:9px 11px 11px}
 .item-name{font-size:13px;font-weight:800;color:var(--text);line-height:1.3;margin-bottom:4px;min-height:34px}
@@ -855,6 +862,49 @@ function stopTV(){
 (function(){const src=document.getElementById('cartCount'),b=document.getElementById('navCartBadge');
   function s(){const n=parseInt(src.textContent)||0;b.textContent=n;b.classList.toggle('show',n>0);}
   new MutationObserver(s).observe(src,{childList:true,characterData:true,subtree:true});s();})();
+
+/* ── Меню из кабинета ───────────────────────────────────────────────
+   Пока сервер не ответил, показываем меню из menu.js — витрина
+   открывается мгновенно. Если в кабинете меню отредактировали,
+   перестраиваем список: появятся фото, описания и «нет в наличии». */
+function menuPhotos(){
+  if(typeof MENU==='undefined') return;
+  MENU.forEach(function(cat){
+    (cat.items||[]).forEach(function(it){
+      const add=document.getElementById('add-'+it.id);
+      if(!add) return;
+      const card=add.closest('.item-card,.item-wide');
+      if(!card) return;
+      const ph=card.querySelector('.item-img-placeholder');
+      if(ph&&it.img){
+        ph.style.backgroundImage='url("'+String(it.img).replace(/"/g,'%22')+'")';
+        ph.classList.add('has-img');
+      }
+      if(it.off){
+        card.classList.add('is-off');
+        if(!card.querySelector('.soldout')){
+          const d=document.createElement('div'); d.className='soldout'; d.textContent='Нет в наличии';
+          const nm=card.querySelector('.item-name'); if(nm&&nm.parentNode) nm.parentNode.insertBefore(d,nm.nextSibling);
+        }
+      }
+    });
+  });
+}
+async function menuPull(){
+  const v=await cfgGet('yaya_menu');
+  const list=(v&&Array.isArray(v.categories))?v.categories:(Array.isArray(v)?v:null);
+  if(!list||!list.length) { menuPhotos(); return; }
+  if(typeof MENU==='undefined') return;
+  if(JSON.stringify(list)===JSON.stringify(MENU)) { menuPhotos(); return; }
+  MENU=list;
+  const cats=document.getElementById('cats'), content=document.getElementById('menu-content');
+  if(cats) cats.innerHTML=''; if(content) content.innerHTML='';
+  renderMenu();                      /* перестраивает menu.js */
+  menuPhotos();
+  showCat(curCat===null?0:Math.min(curCat,MENU.length-1));
+}
+setTimeout(menuPull,0);
+setInterval(menuPull,120000);
 
 /* ── Категории: показываем одну, а не прокручиваем всю ленту ────────
    Кнопки и разделы строит menu.js из массива MENU, строго в одном
