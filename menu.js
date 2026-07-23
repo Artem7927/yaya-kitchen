@@ -193,39 +193,6 @@ function findItem(id) {
   .item-card .qty-num{color:#111;min-width:18px}
   .item-wide{cursor:pointer}
 
-  /* товар на весь экран */
-  .yy-full{position:fixed;inset:0;z-index:9999;background:var(--bg,#0F0E0C);display:flex;flex-direction:column;
-    transform:translateY(100%);transition:transform .26s cubic-bezier(.22,.61,.36,1);visibility:hidden}
-  .yy-full.open{transform:none;visibility:visible}
-  .yy-scroll{flex:1;overflow-y:auto;-webkit-overflow-scrolling:touch}
-  .yy-hero{position:relative;width:100%;aspect-ratio:1;background:#211D17;background-size:cover;
-    background-position:center;display:flex;align-items:center;justify-content:center}
-  .yy-hero .ph{font-family:'Bebas Neue',sans-serif;font-size:64px;letter-spacing:2px;color:rgba(244,180,0,.28)}
-  .yy-hero::after{content:"";position:absolute;left:0;right:0;bottom:0;height:110px;
-    background:linear-gradient(to top,var(--bg,#0F0E0C),transparent)}
-  .yy-close{position:absolute;top:14px;left:14px;z-index:4;width:42px;height:42px;border-radius:50%;
-    border:none;background:rgba(0,0,0,.55);color:#fff;font-size:20px;line-height:1;cursor:pointer;
-    backdrop-filter:blur(6px)}
-  .yy-body{padding:2px 18px 26px;position:relative;z-index:3}
-  .yy-name{font-size:25px;font-weight:900;line-height:1.15;color:var(--text,#fff)}
-  .yy-price{font-size:29px;font-weight:900;color:var(--gold,#F4B400);margin-top:8px}
-  .yy-label{font:800 11px Nunito,sans-serif;color:var(--muted,#8A8377);text-transform:uppercase;
-    letter-spacing:1.4px;margin:20px 0 6px}
-  .yy-desc{font-size:15px;font-weight:600;line-height:1.5;color:var(--text2,#CFC8BC);cursor:pointer}
-  .yy-desc.clamped{display:-webkit-box;-webkit-line-clamp:3;-webkit-box-orient:vertical;overflow:hidden}
-  .yy-more{margin-top:8px;background:none;border:none;padding:0;color:var(--gold,#F4B400);
-    font:800 14px Nunito,sans-serif;cursor:pointer}
-  .yy-offnote{margin-top:18px;padding:12px 14px;border-radius:14px;background:rgba(255,143,106,.12);
-    color:#ff8f6a;font-weight:800;font-size:14px}
-  .yy-foot{padding:12px 18px calc(14px + env(safe-area-inset-bottom));border-top:1px solid var(--border,#26221A);
-    background:var(--bg,#0F0E0C);display:flex;align-items:center;justify-content:space-between;gap:14px}
-  .yy-foot .sum{font:800 12px Nunito,sans-serif;color:var(--muted,#8A8377)}
-  .yy-foot .sum b{display:block;font-size:20px;color:var(--text,#fff);font-weight:900;margin-top:2px}
-  .yy-foot .btn-add{width:52px;height:52px;font-size:28px}
-  .yy-foot .qty-control{gap:0;background:var(--gold,#F4B400);border-radius:26px;padding:3px}
-  .yy-foot .qty-btn{width:44px;height:46px;border:none;background:transparent;color:#111;font-size:24px}
-  .yy-foot .qty-num{color:#111;font-size:18px;min-width:24px}
-  @media (prefers-reduced-motion:reduce){ .yy-full{transition:none} }
   `;
   document.head.appendChild(st);
 })();
@@ -322,85 +289,102 @@ function renderMenu() {
   if (typeof cart !== 'undefined') Object.keys(cart).forEach(updateCard);
 }
 
-/* ══ Товар на весь экран ═══════════════════════════════════════════ */
-function yyFullEl() {
-  let el = document.getElementById('yyFull');
-  if (el) return el;
-  el = document.createElement('div');
-  el.id = 'yyFull';
-  el.className = 'yy-full';
-  el.innerHTML = `
-    <div class="yy-scroll">
-      <div class="yy-hero" id="yyHero"><span class="ph" id="yyHeroPh">YaYa</span>
-        <button class="yy-close" onclick="closeProduct()" aria-label="Закрыть">✕</button>
-      </div>
-      <div class="yy-body">
-        <div class="yy-name" id="yyName"></div>
-        <div class="yy-price" id="yyPriceBig"></div>
-        <div id="yyDescBox"></div>
-        <div id="yyOffBox"></div>
-      </div>
-    </div>
-    <div class="yy-foot">
-      <div class="sum" id="yyFootSum"></div>
-      <div id="yyFullAdd"></div>
-    </div>`;
-  document.body.appendChild(el);
-  return el;
-}
+/* ══ Товар на весь экран ═══════════════════════════════════════════
+   Стили прописаны прямо в элементах: окно рисуется одинаково в любом
+   вебвью и не зависит от таблиц стилей витрины.                    */
+const YY_BG='#0F0E0C', YY_GOLD='#F4B400', YY_TXT='#F2EFE8', YY_TXT2='#A6A197';
 
-function openProduct(id) {
-  const it = findItem(id);
-  if (!it) return;
-  yyOpenId = id;
-  const el = yyFullEl();
+function openProduct(id){
+  const it=findItem(id);
+  if(!it) return;
+  yyOpenId=id;
 
-  const hero = document.getElementById('yyHero');
-  hero.style.backgroundImage = it.img ? 'url("' + String(it.img).replace(/"/g, '%22') + '")' : '';
-  document.getElementById('yyHeroPh').style.display = it.img ? 'none' : '';
+  let el=document.getElementById('yyFull');
+  if(!el){ el=document.createElement('div'); el.id='yyFull'; document.body.appendChild(el); }
+  el.setAttribute('style',
+    'position:fixed;top:0;left:0;right:0;bottom:0;z-index:99999;background:'+YY_BG+';'
+   +'overflow-y:auto;-webkit-overflow-scrolling:touch;opacity:0;transition:opacity .18s ease;'
+   +'font-family:Nunito,system-ui,-apple-system,sans-serif');
 
-  document.getElementById('yyName').textContent = it.name || '';
-  document.getElementById('yyPriceBig').textContent = yyPrice(it.price);
+  const img=it.img?String(it.img).replace(/"/g,'%22'):'';
+  const hero=img
+    ? 'background-image:url("'+img+'");background-size:cover;background-position:center'
+    : 'background:#211D17';
 
-  const long = (it.desc || '').length > 110;
-  document.getElementById('yyDescBox').innerHTML = it.desc
-    ? `<div class="yy-label">Состав</div>
-       <div class="yy-desc ${long ? 'clamped' : ''}" id="yyDesc" onclick="toggleDesc()">${yyEsc(it.desc)}</div>
-       ${long ? '<button class="yy-more" id="yyMore" onclick="toggleDesc()">Показать полностью</button>' : ''}`
-    : '';
+  const desc=(it.desc||'').trim();
 
-  document.getElementById('yyOffBox').innerHTML = it.off
-    ? '<div class="yy-offnote">Сейчас этой позиции нет в наличии</div>' : '';
+  el.innerHTML=
+    '<div style="position:relative;width:100%;height:100vw;max-height:58vh;'+hero+'">'
+     +(img?'':'<div style="position:absolute;left:0;right:0;top:50%;transform:translateY(-50%);'
+             +'text-align:center;font-family:\'Bebas Neue\',sans-serif;font-size:56px;'
+             +'letter-spacing:2px;color:rgba(244,180,0,.28)">YaYa</div>')
+     +'<button onclick="closeProduct()" aria-label="Закрыть" style="position:absolute;top:14px;left:14px;'
+     +'width:42px;height:42px;border-radius:50%;border:none;background:rgba(0,0,0,.55);color:#fff;'
+     +'font-size:20px;line-height:1;cursor:pointer">✕</button>'
+     +'<div style="position:absolute;left:0;right:0;bottom:0;height:96px;'
+     +'background:linear-gradient(to top,'+YY_BG+',rgba(15,14,12,0))"></div>'
+   +'</div>'
 
-  const sum = document.getElementById('yyFootSum');
-  const foot = document.getElementById('yyFullAdd');
-  if (it.off) { sum.textContent = 'Нет в наличии'; foot.innerHTML = ''; }
-  else {
-    sum.innerHTML = 'Цена<b>' + yyPrice(it.price) + '</b>';
-    updateCard(id);
+   +'<div style="padding:14px 18px 130px">'
+     +'<div style="font-size:24px;font-weight:900;line-height:1.15;color:'+YY_TXT+'">'+yyEsc(it.name)+'</div>'
+     +'<div style="font-size:28px;font-weight:900;color:'+YY_GOLD+';margin-top:8px">'+yyPrice(it.price)+'</div>'
+     +(it.off?'<div style="margin-top:16px;padding:12px 14px;border-radius:14px;'
+              +'background:rgba(255,143,106,.12);color:#ff8f6a;font-weight:800;font-size:14px">'
+              +'Сейчас этой позиции нет в наличии</div>':'')
+     +'<div style="font-size:11px;font-weight:800;color:'+YY_TXT2+';letter-spacing:1.4px;'
+     +'text-transform:uppercase;margin:22px 0 7px">Состав</div>'
+     +(desc
+        ? '<div id="yyDesc" onclick="toggleDesc()" style="font-size:15px;font-weight:600;line-height:1.55;'
+          +'color:'+YY_TXT+';max-height:4.7em;overflow:hidden">'+yyEsc(desc)+'</div>'
+          +'<button id="yyMore" onclick="toggleDesc()" style="display:none;margin-top:9px;background:none;'
+          +'border:none;padding:0;color:'+YY_GOLD+';font-family:inherit;font-size:14px;font-weight:800;'
+          +'cursor:pointer">Показать полностью</button>'
+        : '<div style="font-size:14px;font-weight:700;color:'+YY_TXT2+'">'
+          +'Состав не заполнен — добавьте его в кабинете</div>')
+   +'</div>'
+
+   +'<div style="position:fixed;left:0;right:0;bottom:0;background:'+YY_BG+';'
+   +'border-top:1px solid rgba(255,255,255,.08);padding:12px 18px calc(14px + env(safe-area-inset-bottom));'
+   +'display:flex;align-items:center;justify-content:space-between">'
+     +'<div style="font-size:12px;font-weight:800;color:'+YY_TXT2+'">'
+       +(it.off?'Нет в наличии'
+               :'Цена<b style="display:block;font-size:20px;color:'+YY_TXT+';font-weight:900;margin-top:2px">'
+                +yyPrice(it.price)+'</b>')
+     +'</div>'
+     +'<div id="yyFullAdd"></div>'
+   +'</div>';
+
+  if(!it.off) updateCard(id);
+
+  /* кнопка «Показать полностью» — только если текст правда не влез */
+  const d=document.getElementById('yyDesc'), m=document.getElementById('yyMore');
+  if(d&&m){
+    if(d.scrollHeight>d.clientHeight+4) m.style.display='';
+    else d.style.maxHeight='none';
   }
 
-  document.body.style.overflow = 'hidden';
-  requestAnimationFrame(() => el.classList.add('open'));
-  try { history.pushState({ yyFull: 1 }, ''); } catch (e) {}
+  document.body.style.overflow='hidden';
+  requestAnimationFrame(function(){ el.style.opacity='1'; });
+  try{ history.pushState({yyFull:1},''); }catch(e){}
 }
 
-function closeProduct(fromBack) {
-  const el = document.getElementById('yyFull');
-  if (el) el.classList.remove('open');
-  yyOpenId = null;
-  document.body.style.overflow = '';
-  if (!fromBack) {
-    try { if (history.state && history.state.yyFull) history.back(); } catch (e) {}
+function closeProduct(fromBack){
+  const el=document.getElementById('yyFull');
+  if(el){ el.style.opacity='0'; setTimeout(function(){ if(!yyOpenId&&el) el.remove(); },200); }
+  yyOpenId=null;
+  document.body.style.overflow='';
+  if(!fromBack){
+    try{ if(history.state&&history.state.yyFull) history.back(); }catch(e){}
   }
 }
 
-function toggleDesc() {
-  const d = document.getElementById('yyDesc'), b = document.getElementById('yyMore');
-  if (!d) return;
-  const clamped = d.classList.toggle('clamped');
-  if (b) b.textContent = clamped ? 'Показать полностью' : 'Свернуть';
+function toggleDesc(){
+  const d=document.getElementById('yyDesc'), b=document.getElementById('yyMore');
+  if(!d) return;
+  const open=d.style.maxHeight==='none';
+  d.style.maxHeight=open?'4.7em':'none';
+  if(b) b.textContent=open?'Показать полностью':'Свернуть';
 }
 
-window.addEventListener('popstate', () => { if (yyOpenId) closeProduct(true); });
-document.addEventListener('keydown', e => { if (e.key === 'Escape' && yyOpenId) closeProduct(); });
+window.addEventListener('popstate',function(){ if(yyOpenId) closeProduct(true); });
+document.addEventListener('keydown',function(e){ if(e.key==='Escape'&&yyOpenId) closeProduct(); });
