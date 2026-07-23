@@ -292,8 +292,39 @@ function renderMenu() {
     content.appendChild(sec);
   });
 
-  /* если что-то уже лежит в корзине — вернуть счётчики на плитки */
-  if (typeof cart !== 'undefined') Object.keys(cart).forEach(updateCard);
+  /* фото, «нет в наличии» и счётчики ставим сами — витрина это делает
+     только после первой отрисовки, а меню перерисовывается из базы */
+  MENU.forEach(cat => (cat.items || []).forEach(it => {
+    const add = document.getElementById('add-' + it.id);
+    if (!add) return;
+    const card = add.closest('.item-card,.item-wide');
+    if (!card) return;
+
+    const ph = card.querySelector('.item-img-placeholder');
+    if (ph && it.img) {
+      ph.style.backgroundImage = 'url("' + String(it.img).replace(/"/g, '%22') + '")';
+      ph.classList.add('has-img');
+    }
+    if (it.off) {
+      card.classList.add('is-off');
+      if (!card.querySelector('.soldout')) {
+        const d = document.createElement('div');
+        d.className = 'soldout';
+        d.textContent = 'Нет в наличии';
+        const nm = card.querySelector('.item-name');
+        if (nm) nm.parentNode.insertBefore(d, nm.nextSibling);
+      }
+    }
+    if (typeof cart !== 'undefined' && cart[it.id]) updateCard(it.id);
+  }));
+
+  /* возвращаем открытую категорию, иначе после обновления видно всё сразу */
+  try {
+    if (typeof showCat === 'function') {
+      const i = (typeof curCat === 'number' && MENU[curCat]) ? curCat : 0;
+      showCat(i);
+    }
+  } catch (e) {}
 }
 
 /* ══ Товар на весь экран ═══════════════════════════════════════════
