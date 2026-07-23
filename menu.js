@@ -225,6 +225,13 @@ function updateCartBar() {
 // ── Рендер меню ───────────────────────────────────────────────────────
 function renderMenu() {
   const catsEl = document.getElementById('cats');
+  if (!catsEl) return;
+  /* чистим перед отрисовкой: renderMenu может вызываться повторно
+     (первый показ + обновление меню из базы), иначе карточки задвоятся */
+  catsEl.innerHTML = '';
+  const contentEl = document.getElementById('menu-content');
+  if (contentEl) contentEl.innerHTML = '';
+
   MENU.forEach((cat, i) => {
     const btn = document.createElement('button');
     btn.className = 'cat-btn' + (i === 0 ? ' active' : '');
