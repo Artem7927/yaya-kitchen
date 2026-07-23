@@ -49,7 +49,7 @@ let MENU = [
     {id:'b30',name:'КОМБО НА ДВОИХ (Говяжий)',price:6590,desc:'бургер из говядины + крылышки 8 шт + фри + соус + Coca Cola'},
     {id:'b31',name:'КОМБО НА ДВОИХ (Куриный)',price:6390,desc:'бургер из курицы + крылышки 8 шт + фри + соус + Coca Cola'}
   ]},
-  {id:'doners',name:'Шаурма и донеры',emoji:'🌯',wide:false,items:[
+  {id:'doners',name:'Донеры',emoji:'🌯',wide:false,items:[
     {id:'d32',name:'Донер куриный',price:1590,desc:'донер из курицы'},
     {id:'d33',name:'Донер говяжий',price:1790,desc:'донер из говядины'},
     {id:'d34',name:'Донер MIX',price:1690,desc:'смешанный донер'},
