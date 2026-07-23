@@ -306,18 +306,15 @@ function openProduct(id){
    +'overflow-y:auto;-webkit-overflow-scrolling:touch;opacity:0;transition:opacity .18s ease;'
    +'font-family:Nunito,system-ui,-apple-system,sans-serif');
 
-  const img=it.img?String(it.img).replace(/"/g,'%22'):'';
-  const hero=img
-    ? 'background-image:url("'+img+'");background-size:cover;background-position:center'
-    : 'background:#211D17';
-
+  const img=it.img?String(it.img):'';
   const desc=(it.desc||'').trim();
 
   el.innerHTML=
-    '<div style="position:relative;width:100%;height:100vw;max-height:58vh;'+hero+'">'
-     +(img?'':'<div style="position:absolute;left:0;right:0;top:50%;transform:translateY(-50%);'
-             +'text-align:center;font-family:\'Bebas Neue\',sans-serif;font-size:56px;'
-             +'letter-spacing:2px;color:rgba(244,180,0,.28)">YaYa</div>')
+    '<div id="yyHero" style="position:relative;width:100%;height:100vw;max-height:58vh;'
+     +'background:#211D17 center/cover no-repeat">'
+     +'<div style="position:absolute;left:0;right:0;top:50%;transform:translateY(-50%);'
+     +'text-align:center;font-family:\'Bebas Neue\',sans-serif;font-size:56px;'
+     +'letter-spacing:2px;color:rgba(244,180,0,.28)">YaYa</div>'
      +'<button onclick="closeProduct()" aria-label="Закрыть" style="position:absolute;top:14px;left:14px;'
      +'width:42px;height:42px;border-radius:50%;border:none;background:rgba(0,0,0,.55);color:#fff;'
      +'font-size:20px;line-height:1;cursor:pointer">✕</button>'
@@ -353,6 +350,12 @@ function openProduct(id){
      +'</div>'
      +'<div id="yyFullAdd"></div>'
    +'</div>';
+
+  /* фото ставим из JS: в атрибуте style кавычки внутри url() ломают разметку */
+  if(img){
+    const h=document.getElementById('yyHero');
+    if(h) h.style.backgroundImage='url("'+img.replace(/"/g,'%22')+'")';
+  }
 
   if(!it.off) updateCard(id);
 
