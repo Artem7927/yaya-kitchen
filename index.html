@@ -128,7 +128,12 @@ body.gsheet-lock{overflow:hidden}
 .search-wrap .si svg{width:18px;height:18px;fill:var(--muted)}
 
 /* Категории */
-.cats{display:flex;gap:9px;overflow-x:auto;padding:4px 16px 4px;scrollbar-width:none}
+/* Баннер и категории закреплены под шапкой: они всегда на виду,
+   а под ними прокручиваются только товары.                        */
+.stickbar{position:sticky;top:var(--hdr,62px);z-index:45;background:var(--bg);
+  padding-top:8px;box-shadow:0 10px 14px -12px #000}
+.stickbar .hero{margin:0 16px 8px}
+.cats{display:flex;gap:9px;overflow-x:auto;padding:0 16px 9px;scrollbar-width:none}
 .cats::-webkit-scrollbar{display:none}
 .cat-btn{flex:none;padding:9px 16px;border-radius:12px;border:1px solid var(--border);background:var(--panel2);font:800 13px Nunito,sans-serif;color:var(--text2);cursor:pointer;transition:.15s;white-space:nowrap}
 .cat-btn.active{background:var(--gold);border-color:var(--gold);color:#111}
@@ -296,16 +301,12 @@ body.tv-open #cartBar{display:none!important}
     </div>
   </div>
 
-  <div class="hero" id="heroBanner" onclick="heroTap()">
-    <img src="banner.jpg" alt="YaYa Chicken" loading="eager">
+  <div class="stickbar" id="stickBar">
+    <div class="hero" id="heroBanner" onclick="heroTap()">
+      <img src="banner.jpg" alt="YaYa Chicken" loading="eager">
+    </div>
+    <div class="cats" id="cats"></div>
   </div>
-
-  <div class="search-wrap">
-    <span class="si"><svg><use href="#ic-search"/></svg></span>
-    <input type="text" placeholder="Поиск в меню…" id="searchInput" oninput="handleSearch(this.value)">
-  </div>
-
-  <div class="cats" id="cats"></div>
   <div id="menu-content"></div>
 </div>
 
@@ -546,10 +547,9 @@ function banShow(n){
 /* Нажатие: ведём куда указано в кабинете, иначе как раньше — к поиску */
 function heroTap(){
   const list=banSlides(), s=list[banIdx];
-  if(s&&s.act==='cat'&&s.cat){ tvGoOrder(s.cat); return; }
+  if(s&&s.act==='cat'&&s.cat){ openCatById(s.cat); return; }
   if(s&&s.act==='url'&&/^https?:\/\//i.test(s.url||'')){ window.open(s.url,'_blank','noopener'); return; }
-  const inp=document.getElementById('searchInput');
-  if(inp) inp.scrollIntoView({behavior:'smooth',block:'start'});
+  showCat(curCat===null?0:curCat);      /* просто картинка — ничего не делаем */
 }
 setTimeout(banPull,0);
 setInterval(banPull,60000);
@@ -831,10 +831,20 @@ function tvClickMenuButton(name){
   return false;
 }
 
+/* Открыть категорию по её коду (из ТВ или с баннера) */
+function openCatById(cat){
+  if(typeof MENU!=='undefined'){
+    const i=MENU.findIndex(function(c){ return (c.id||'')===cat; });
+    if(i>=0){ showCat(i); return; }
+  }
+  const el=document.getElementById('sec-'+cat);
+  const i2=menuSections().indexOf(el);
+  if(i2>=0) showCat(i2);
+}
 function tvGoOrder(cat){
   stopTV();
   navTo('menu', document.getElementById('nav-home'));
-  if(cat)setTimeout(function(){document.getElementById('sec-'+cat)&&document.getElementById('sec-'+cat).scrollIntoView({behavior:'smooth',block:'start'});},120);
+  if(cat)setTimeout(function(){ openCatById(cat); },120);
 }
 
 function stopTV(){
@@ -846,17 +856,68 @@ function stopTV(){
   function s(){const n=parseInt(src.textContent)||0;b.textContent=n;b.classList.toggle('show',n>0);}
   new MutationObserver(s).observe(src,{childList:true,characterData:true,subtree:true});s();})();
 
-/* Поиск по меню */
+/* ── Категории: показываем одну, а не прокручиваем всю ленту ────────
+   Кнопки и разделы строит menu.js из массива MENU, строго в одном
+   порядке, поэтому кнопку и раздел связываем по MENU[i].id.       */
+let curCat=null;
+function menuSections(){ return Array.prototype.slice.call(document.querySelectorAll('#menu-content .section')); }
+function catButtons(){ return Array.prototype.slice.call(document.querySelectorAll('#cats .cat-btn')); }
+function sectionFor(i){
+  if(typeof MENU!=='undefined'&&MENU[i]&&MENU[i].id){
+    const s=document.getElementById('sec-'+MENU[i].id);
+    if(s) return s;
+  }
+  return menuSections()[i]||null;
+}
+function showCat(i){
+  const secs=menuSections(), btns=catButtons();
+  if(!secs.length) return;
+  const target=sectionFor(i);
+  curCat=i;
+  secs.forEach(function(s){ s.style.display=(s===target)?'':'none'; });
+  btns.forEach(function(b,n){ b.classList.toggle('active',n===i); });
+  /* Лента не прокручивается — раздел появляется на месте.
+     Если человек был внизу списка, поднимаем его к началу. */
+  if(window.scrollY>4) window.scrollTo(0,0);
+  if(btns[i]&&btns[i].scrollIntoView) btns[i].scrollIntoView({block:'nearest',inline:'center',behavior:'smooth'});
+}
+/* Перехват в фазе погружения: обработчик из menu.js не сработает */
+document.addEventListener('DOMContentLoaded',function(){
+  const cats=document.getElementById('cats');
+  if(!cats) return;
+  cats.addEventListener('click',function(e){
+    const b=e.target.closest && e.target.closest('.cat-btn');
+    if(!b) return;
+    e.stopPropagation(); e.preventDefault();
+    showCat(catButtons().indexOf(b));
+  },true);
+});
+/* Высота шапки — чтобы блок липнул ровно под ней */
+function fixStickTop(){
+  const h=document.querySelector('.header');
+  if(h) document.documentElement.style.setProperty('--hdr',h.offsetHeight+'px');
+}
+window.addEventListener('resize',fixStickTop);
+window.addEventListener('load',function(){
+  fixStickTop();
+  setTimeout(function(){ if(curCat===null&&menuSections().length) showCat(0); },200);
+});
+
+/* Поиск убран с главной, но функция оставлена: её может вызывать
+   старый код. Ничего не ломает — просто показывает выбранную категорию. */
 function handleSearch(q){
   q=(q||'').trim().toLowerCase();
-  document.querySelectorAll('#menu-content .section').forEach(sec=>{
+  const secs=menuSections();
+  if(!q){ showCat(curCat===null?0:curCat); return; }
+  catButtons().forEach(function(b){ b.classList.remove('active'); });
+  secs.forEach(function(sec){
     let any=false;
-    sec.querySelectorAll('.item-card,.item-wide').forEach(card=>{
-      const name=(card.querySelector('.item-name')?.textContent||'').toLowerCase();
-      const show=!q||name.includes(q);card.style.display=show?'':'none';if(show)any=true;
+    sec.querySelectorAll('.item-card,.item-wide').forEach(function(card){
+      const name=((card.querySelector('.item-name')||{}).textContent||'').toLowerCase();
+      const show=name.includes(q); card.style.display=show?'':'none'; if(show)any=true;
     });
-    const title=sec.querySelector('.section-title');if(title)title.style.display=(!q||any)?'':'none';
-    sec.style.display=(!q||any)?'':'none';
+    const title=sec.querySelector('.section-title'); if(title) title.style.display=any?'':'none';
+    sec.style.display=any?'':'none';
   });
 }
 
