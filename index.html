@@ -98,6 +98,19 @@ body.gsheet-lock{overflow:hidden}
 /* HERO баннер */
 .hero{margin:14px 16px 14px;border-radius:20px;overflow:hidden;cursor:pointer;position:relative;border:1px solid var(--border)}
 .hero img{display:block;width:100%;height:auto}
+/* Слайдер: кадры лежат стопкой, показывается тот, что с классом on */
+.hero.slides{aspect-ratio:16/7;background:#111}
+.hero.slides img{position:absolute;inset:0;width:100%;height:100%;object-fit:cover;
+  opacity:0;transition:opacity var(--bnsp,1s) ease}
+.hero.slides img.on{opacity:1}
+.hero.slides.t-slide img{opacity:1;transform:translateX(100%);transition:transform var(--bnsp,1s) ease}
+.hero.slides.t-slide img.on{transform:none}
+.hero.slides.t-slide img.past{transform:translateX(-100%)}
+.hero.slides.t-zoom img{transform:scale(1.12);transition:opacity var(--bnsp,1s) ease,transform var(--bnsp,1s) ease}
+.hero.slides.t-zoom img.on{transform:none}
+.hero .dots{position:absolute;left:0;right:0;bottom:9px;display:flex;justify-content:center;gap:6px;z-index:2}
+.hero .dots i{width:6px;height:6px;border-radius:50%;background:rgba(255,255,255,.45);transition:.25s}
+.hero .dots i.on{background:#fff;width:16px;border-radius:3px}
 .hero-tag{font-size:11px;font-weight:800;letter-spacing:2.5px;color:#3a2600;text-transform:uppercase;margin-bottom:8px}
 .hero h1{font-family:'Bebas Neue',sans-serif;font-size:32px;line-height:1.02;color:#1a1200;margin-bottom:8px}
 .hero p{font-size:13px;color:rgba(30,18,0,.85);font-weight:700;margin-bottom:14px;line-height:1.4;max-width:82%}
@@ -283,7 +296,7 @@ body.tv-open #cartBar{display:none!important}
     </div>
   </div>
 
-  <div class="hero" onclick="document.getElementById('searchInput').scrollIntoView({behavior:'smooth',block:'start'})">
+  <div class="hero" id="heroBanner" onclick="heroTap()">
     <img src="banner.jpg" alt="YaYa Chicken" loading="eager">
   </div>
 
@@ -467,6 +480,81 @@ body.tv-open #cartBar{display:none!important}
 const CFG_API='https://yaya-db-production.up.railway.app';
 
 /* Читаем то, что администратор сохранил в кабинете */
+/* ── Баннер главного экрана ─────────────────────────────────────────
+   Слайды приходят из кабинета (/kv/yaya_banners). Пока их нет или
+   баннер вне расписания — остаётся обычная картинка banner.jpg.    */
+let BAN=null, banIdx=0, banTimer=null;
+function banFits(b){
+  if(!b) return false;
+  const ms=v=>{ const m=String(v||'').match(/^(\d{4})-(\d{2})-(\d{2})[T ](\d{2}):(\d{2})/);
+    return m?new Date(+m[1],+m[2]-1,+m[3],+m[4],+m[5]).getTime():NaN; };
+  const now=Date.now(), f=ms(b.from), t=ms(b.to);
+  if(!isNaN(f)&&f>now) return false;
+  if(!isNaN(t)&&t<now) return false;
+  return true;
+}
+function banSlides(){
+  if(!BAN||!banFits(BAN)||!Array.isArray(BAN.slides)) return [];
+  return BAN.slides.filter(s=>s&&!s.off&&s.img);
+}
+async function banPull(){
+  const v=await cfgGet('yaya_banners');
+  if(!v||typeof v!=='object') return;
+  BAN=v; banRender();
+}
+function banRender(){
+  const hero=document.getElementById('heroBanner');
+  if(!hero) return;
+  const list=banSlides();
+  if(!list.length){                       /* вернуть обычный баннер */
+    if(banTimer){ clearTimeout(banTimer); banTimer=null; }
+    hero.className='hero';
+    hero.innerHTML='<img src="banner.jpg" alt="YaYa Chicken" loading="eager">';
+    return;
+  }
+  const a=BAN.anim||{};
+  hero.style.setProperty('--bnsp',((Number(a.speed)||1000)/1000)+'s');
+  hero.className='hero slides t-'+(a.type||'fade');
+  hero.innerHTML=list.map((s,i)=>`<img src="${String(s.img).replace(/"/g,'&quot;')}" alt=""${i?'':' class="on"'} loading="${i?'lazy':'eager'}">`).join('')
+    +(list.length>1?'<div class="dots">'+list.map((s,i)=>`<i class="${i?'':'on'}"></i>`).join('')+'</div>':'');
+  banIdx=0;
+  if(banTimer){ clearTimeout(banTimer); banTimer=null; }
+  if(list.length>1&&a.auto!==false) banSchedule();
+}
+function banSchedule(){
+  const list=banSlides(); if(list.length<2) return;
+  const wait=(Number(list[banIdx]&&list[banIdx].sec)||5)*1000;
+  banTimer=setTimeout(function(){
+    const a=(BAN&&BAN.anim)||{};
+    const next=banIdx+1;
+    if(next>=list.length&&a.loop===false){ banTimer=null; return; }
+    banShow(next%list.length);
+    banSchedule();
+  },wait);
+}
+function banShow(n){
+  const hero=document.getElementById('heroBanner'); if(!hero) return;
+  const imgs=hero.querySelectorAll('img'), dots=hero.querySelectorAll('.dots i');
+  if(!imgs[n]) return;
+  imgs.forEach((im,i)=>{
+    im.classList.toggle('on',i===n);
+    im.classList.toggle('past',i<n);        /* нужно только для сдвига вбок */
+  });
+  dots.forEach((d,i)=>d.classList.toggle('on',i===n));
+  banIdx=n;
+}
+/* Нажатие: ведём куда указано в кабинете, иначе как раньше — к поиску */
+function heroTap(){
+  const list=banSlides(), s=list[banIdx];
+  if(s&&s.act==='cat'&&s.cat){ tvGoOrder(s.cat); return; }
+  if(s&&s.act==='url'&&/^https?:\/\//i.test(s.url||'')){ window.open(s.url,'_blank','noopener'); return; }
+  const inp=document.getElementById('searchInput');
+  if(inp) inp.scrollIntoView({behavior:'smooth',block:'start'});
+}
+setTimeout(banPull,0);
+setInterval(banPull,60000);
+document.addEventListener('visibilitychange',function(){ if(!document.hidden) banPull(); });
+
 async function cfgGet(key){
   const c=new AbortController(), t=setTimeout(()=>c.abort(),8000);
   try{
