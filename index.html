@@ -396,6 +396,7 @@ body.tv-open #cartBar{display:none!important}
       </div>
     </div>
     <div id="pdfBtnWrap" style="width:100%"><button onclick="downloadPDF()" style="width:100%;padding:14px;background:var(--panel2);border:1px solid var(--gold);border-radius:15px;color:var(--gold);font:800 15px Nunito,sans-serif;cursor:pointer">Скачать квитанцию PDF</button></div>
+    <button onclick="newOrder()" style="width:100%;padding:15px;background:var(--gold);border:none;border-radius:15px;color:#1a1400;font:900 15px Nunito,sans-serif;cursor:pointer">Сделать новый заказ</button>
   </div>
 </div>
 
@@ -1127,7 +1128,16 @@ function courMarkerHtml(p){
 function courIcon(p){ return L.divIcon({className:'',html:courMarkerHtml(p),iconSize:[44,44],iconAnchor:[22,22]}); }
 function startOrdersRefresh(){ renderOrders(); if(ordTimer)clearInterval(ordTimer); ordTimer=setInterval(renderOrders,12000); }
 function stopOrdersRefresh(){ if(ordTimer){clearInterval(ordTimer);ordTimer=null;} }
-if(window.navTo){ const _navTo=window.navTo; window.navTo=function(screen,el){ _navTo(screen,el); if(screen==='orders')startOrdersRefresh(); else stopOrdersRefresh(); }; }
+if(window.navTo){ const _navTo=window.navTo; window.navTo=function(screen,el){
+  // Если уходим с экрана «Спасибо» через нижнее меню (не через кнопку
+  // «Новый заказ») — всё равно сбрасываем прошлый заказ, чтобы следующий
+  // оформлялся без перезагрузки.
+  const succ=document.getElementById('screen-success');
+  const leavingSuccess = succ && succ.classList.contains('active') && screen!=='success';
+  _navTo(screen,el);
+  if(leavingSuccess && typeof window.resetOrderState==='function') window.resetOrderState();
+  if(screen==='orders')startOrdersRefresh(); else stopOrdersRefresh();
+}; }
 
 /* Перехват оформленного заказа с экрана «Спасибо» (запасной способ) */
 (function(){
