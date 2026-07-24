@@ -52,9 +52,15 @@ function renderCart() {
   const { total } = getStats();
   const deliveryAmt = deliveryCost || 0;
 
-  document.getElementById('cartItems').innerHTML = items.map(item => `
+  document.getElementById('cartItems').innerHTML = items.map(item => {
+    // Фото товара как в меню и в «Заказах»: если есть картинка — показываем
+    // её, иначе остаётся эмодзи-заглушка с подписью YaYa.
+    const thumb = item.img
+      ? `<div class="ci-emoji has-img" style="background-image:url(&quot;${String(item.img).replace(/"/g, '%22')}&quot;)"></div>`
+      : `<div class="ci-emoji">${item.emoji || ''}</div>`;
+    return `
     <div class="cart-item">
-      <div class="ci-emoji">${item.emoji}</div>
+      ${thumb}
       <div class="ci-info">
         <div class="ci-name">${item.name}</div>
         ${item.desc ? `<div class="ci-desc">${item.desc}</div>` : ''}
@@ -68,7 +74,8 @@ function renderCart() {
         </div>
         <div class="ci-total">${(item.price * item.qty).toLocaleString('ru')} тг</div>
       </div>
-    </div>`).join('');
+    </div>`;
+  }).join('');
 
   document.getElementById('cartSummary').innerHTML = `
     <div class="summary-row">

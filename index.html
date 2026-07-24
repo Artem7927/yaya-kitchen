@@ -179,8 +179,9 @@ body.gsheet-lock{overflow:hidden}
 /* Формы */
 .cart-items,.order-form{padding:16px}
 .cart-item{display:flex;gap:12px;background:var(--panel);border:1px solid var(--border);border-radius:14px;padding:12px;margin-bottom:10px}
-.ci-emoji{width:46px;height:46px;border-radius:11px;background:var(--panel2);display:flex;align-items:center;justify-content:center;flex:none;position:relative}
+.ci-emoji{width:46px;height:46px;border-radius:11px;background:var(--panel2);background-size:cover;background-position:center;display:flex;align-items:center;justify-content:center;flex:none;position:relative;overflow:hidden}
 .ci-emoji::after{content:'YaYa';font-family:'Bebas Neue',sans-serif;font-size:12px;color:rgba(244,180,0,.35)}
+.ci-emoji.has-img::after{content:none}
 .ci-info{flex:1;min-width:0}
 .ci-name{font-weight:800;font-size:14px;color:var(--text)}
 .ci-desc{font-size:12px;color:var(--text2);margin-top:2px}
@@ -396,7 +397,6 @@ body.tv-open #cartBar{display:none!important}
       </div>
     </div>
     <div style="font-size:12.5px;color:var(--text2);font-weight:700;text-align:center;line-height:1.5">Квитанция доступна в разделе «Заказы» — нажми на значок квитанции у заказа, чтобы открыть или скачать.</div>
-    <button onclick="newOrder()" style="width:100%;padding:15px;background:var(--gold);border:none;border-radius:15px;color:#1a1400;font:900 15px Nunito,sans-serif;cursor:pointer">Сделать новый заказ</button>
   </div>
 </div>
 
@@ -1613,10 +1613,19 @@ function openReceipt(num){
     modal.onclick=e=>{ if(e.target===modal) closeReceipt(); };
     document.body.appendChild(modal);
   }
+  const rcptThumb=i=>{
+    if(i.img) return `<div style="width:46px;height:46px;border-radius:11px;background:url('${escH(i.img)}') center/cover;flex:0 0 auto"></div>`;
+    const ph=i.emoji||(i.name||'?').charAt(0);
+    return `<div style="width:46px;height:46px;border-radius:11px;background:#f0f0f0;display:flex;align-items:center;justify-content:center;font-weight:900;font-size:18px;color:#c98700;flex:0 0 auto">${escH(ph)}</div>`;
+  };
   const items=(R.items||[]).map(i=>`
-    <div style="padding:6px 0;border-bottom:1px solid #eee;display:flex;justify-content:space-between;gap:8px">
-      <div style="flex:1;min-width:0"><div style="font-size:13px;font-weight:800;color:#111">${escH(i.name)} ×${i.qty||1}</div>${i.desc?`<div style="font-size:11px;color:#999;margin-top:2px">${escH(i.desc)}</div>`:''}</div>
-      <span style="font-size:13px;font-weight:900;white-space:nowrap;color:#111">${money((Number(i.price)||0)*(Number(i.qty)||1))}</span>
+    <div style="padding:8px 0;border-bottom:1px solid #eee;display:flex;align-items:center;gap:10px">
+      ${rcptThumb(i)}
+      <div style="flex:1;min-width:0">
+        <div style="font-size:13.5px;font-weight:800;color:#111;line-height:1.25">${escH(i.name)}</div>
+        <div style="font-size:12px;color:#999;font-weight:700;margin-top:2px">${i.qty||1} × ${money(i.price)}</div>
+      </div>
+      <span style="font-size:13.5px;font-weight:900;white-space:nowrap;color:#111">${money((Number(i.price)||0)*(Number(i.qty)||1))}</span>
     </div>`).join('') || '<div style="font-size:12.5px;color:#999;padding:2px 0">Состав уточняйте у оператора</div>';
   const dev=Number(R.delivery)||0;
   const info=[

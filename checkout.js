@@ -451,9 +451,13 @@ function downloadPDF(orderNum) {
   .header{background:#F4821F;color:white;padding:16px;text-align:center;border-radius:12px 12px 0 0;}
   .header h2{margin:0;font-size:20px;}.header p{margin:4px 0 0;font-size:12px;opacity:0.85;}
   .body{border:2px solid #e8e8e8;border-top:none;border-radius:0 0 12px 12px;padding:16px;}
-  .item-block{padding:6px 0;border-bottom:1px solid #f0f0f0;}
-  .item-row{display:flex;justify-content:space-between;font-size:13px;}
-  .item-desc{font-size:11px;color:#999;margin-top:2px;line-height:1.3;}
+  .item-block{padding:8px 0;border-bottom:1px solid #f0f0f0;display:flex;align-items:center;gap:10px;}
+  .item-th{width:46px;height:46px;border-radius:11px;background-size:cover;background-position:center;flex:0 0 auto;background-color:#f0f0f0;}
+  .item-th-ph{display:flex;align-items:center;justify-content:center;font-weight:900;font-size:18px;color:#c98700;}
+  .item-info{flex:1;min-width:0;}
+  .item-name{font-size:13.5px;font-weight:800;color:#111;line-height:1.25;}
+  .item-meta{font-size:12px;color:#999;font-weight:700;margin-top:2px;}
+  .item-sum{font-size:13.5px;font-weight:900;color:#111;white-space:nowrap;}
   .total-row{display:flex;justify-content:space-between;padding:5px 0;font-size:13px;color:#666;}
   .total-final{display:flex;justify-content:space-between;padding:10px 0;border-top:2px solid #1a1a1a;font-size:16px;font-weight:bold;margin-top:8px;}
   .info{background:#f5f5f5;border-radius:8px;padding:10px;margin-top:12px;font-size:12px;line-height:1.8;}
@@ -463,12 +467,17 @@ function downloadPDF(orderNum) {
   <div class="header"><h2>YaYa Chicken</h2><p>ул. Абая, 49/5 · Экибастуз</p><p>№${num} · ${dateStr}</p></div>
   <div class="body">
     <div class="stitle">Состав заказа</div>
-    ${items.map(i => `
-      <div class="item-block">
-        <div class="item-row"><span>${i.name} ×${i.qty}</span><span>${(i.price * i.qty).toLocaleString('ru')} тг</span></div>
-        ${i.desc ? `<div class="item-desc">${i.desc}</div>` : ''}
-      </div>`).join('')}
-    <div class="total-row" style="color:#666;margin-top:4px;"><span>Доставка</span><span>${delivery > 0 ? delivery.toLocaleString('ru') + ' тг' : 'Бесплатно'}</span></div>
+    ${items.map(i => {
+      const th = i.img
+        ? `<div class="item-th" style="background-image:url('${i.img}')"></div>`
+        : `<div class="item-th item-th-ph">${(i.emoji || (i.name||'?').charAt(0))}</div>`;
+      return `<div class="item-block">${th}
+        <div class="item-info"><div class="item-name">${i.name}</div><div class="item-meta">${i.qty} × ${(Number(i.price)||0).toLocaleString('ru')} тг</div></div>
+        <div class="item-sum">${(i.price * i.qty).toLocaleString('ru')} тг</div>
+      </div>`;
+    }).join('')}
+    <div class="total-row" style="margin-top:6px;"><span>Сумма заказа</span><span>${total.toLocaleString('ru')} тг</span></div>
+    <div class="total-row" style="color:#666;"><span>Доставка</span><span>${delivery > 0 ? delivery.toLocaleString('ru') + ' тг' : 'Бесплатно'}</span></div>
     <div class="total-final"><span>К ОПЛАТЕ</span><span style="color:#F4821F;">${totalAll.toLocaleString('ru')} тг</span></div>
     <div class="info">${ic('pin')}${address}${comment ? '<br>' + ic('chat') + comment : ''}${recipientPhone ? '<br>' + ic('user') + 'Получатель: ' + recipientPhone : ''}${payPhone ? '<br>' + ic('device') + 'Счёт на номер: ' + payPhone : ''}<br>${payStr}</div>
     <div class="footer">Сохраните квитанцию для подтверждения заказа<br>Время доставки: ~45-60 минут<br>Спасибо что выбрали YaYa Chicken!</div>
