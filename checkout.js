@@ -275,9 +275,17 @@ function confirmOrder() {
           clearTimeout(timeout);
           console.log('order sent:', r);
           if (r.num) currentOrderNum = r.num;
+          // Снимок заказа делаем ДО clearCart — иначе квитанция читает
+          // пустую корзину и показывает нули.
+          RECEIPT = snapshotReceipt(currentOrderNum);
           clearCart();
           showReceipt(currentOrderNum);
           showScreen('success');
+          // Заказ ушёл, квитанция построена из снимка и от корзины больше
+          // не зависит. Сразу обнуляем рабочее состояние прошлого заказа —
+          // куда бы клиент ни ушёл (ТВ, главная, закрыл корзину), следующий
+          // заказ оформится с чистого листа, без перезагрузки страницы.
+          resetWorkState();
         })
         .catch(err => {
           clearTimeout(timeout);
@@ -290,8 +298,13 @@ function confirmOrder() {
 }
 
 // ── Квитанция (Экран 5) ───────────────────────────────────────────────
-function showReceipt(orderNum) {
-  const num = orderNum || currentOrderNum || '—';
+// Снимок заказа: делается в момент отправки, ДО clearCart. Хранится и в
+// localStorage — чтобы чек и PDF пережили перезагрузку и всегда показывали
+// реальные цифры, а не пустую корзину.
+let RECEIPT = null;
+try { RECEIPT = JSON.parse(localStorage.getItem('yaya_last_receipt') || 'null'); } catch (e) {}
+
+function snapshotReceipt(orderNum) {
   const items = [];
   for (const [id, qty] of Object.entries(cart)) {
     if (qty <= 0) continue;
@@ -300,27 +313,75 @@ function showReceipt(orderNum) {
   }
   const { total } = getStats();
   const delivery = deliveryCost || 0;
-  const totalAll = total + delivery;
-  const address = document.getElementById('addressInput').value.trim();
-
-  // Сохраняем состав заказа (с картинками), чтобы во вкладке «Заказы»
-  // карточку можно было раскрыть по тапу и показать товары + полную стоимость.
+  const now = new Date();
+  const R = {
+    num: orderNum || currentOrderNum || '—',
+    items: items.map(i => ({ id: i.id, name: i.name, desc: i.desc || '', price: Number(i.price) || 0, qty: Number(i.qty) || 1,
+                             img: i.img || i.image || i.photo || '', emoji: i.emoji || '' })),
+    total: total,
+    delivery: delivery,
+    totalAll: total + delivery,
+    address: (document.getElementById('addressInput')?.value || '').trim(),
+    comment: (document.getElementById('commentInput')?.value || '').trim(),
+    payStr: getPayLabel(),
+    payPhone: getPayPhone(),
+    custName: (document.getElementById('custNameInput')?.value || '').trim(),
+    custPhone: (document.getElementById('custPhoneInput')?.value || '').trim(),
+    recipientPhone: forOther ? (document.getElementById('phoneInput')?.value || '').trim() : null,
+    dateStr: now.toLocaleString('ru', { day:'2-digit', month:'2-digit', year:'numeric', hour:'2-digit', minute:'2-digit' })
+  };
+  try { localStorage.setItem('yaya_last_receipt', JSON.stringify(R)); } catch (e) {}
+  // Полная квитанция по номеру заказа — чтобы в разделе «Заказы» её можно
+  // было открыть и скачать для любого заказа, а не только последнего.
+  try {
+    if (R.num && R.num !== '—') {
+      const _rc = JSON.parse(localStorage.getItem('yaya_receipts') || '{}');
+      _rc[String(R.num)] = R;
+      // не даём хранилищу разрастаться — держим последние 30 квитанций
+      const keys = Object.keys(_rc);
+      if (keys.length > 30) keys.sort((a,b)=>Number(a)-Number(b)).slice(0, keys.length-30).forEach(k=>delete _rc[k]);
+      localStorage.setItem('yaya_receipts', JSON.stringify(_rc));
+    }
+  } catch (e) {}
+  // Состав для вкладки «Заказы».
   try {
     const _store = JSON.parse(localStorage.getItem('yaya_order_items') || '{}');
-    _store[String(num)] = {
-      items: items.map(i => ({ id: i.id, name: i.name, price: i.price, qty: i.qty,
-                               img: i.img || i.image || i.photo || '', emoji: i.emoji || '' })),
-      total: total, delivery: delivery
-    };
+    _store[String(R.num)] = { items: R.items, total: R.total, delivery: R.delivery };
     localStorage.setItem('yaya_order_items', JSON.stringify(_store));
   } catch (e) {}
-  const comment = document.getElementById('commentInput').value.trim();
-  const payStr  = getPayLabel();
-  const payPhone = getPayPhone();
-  const custName  = (document.getElementById('custNameInput')?.value  || '').trim();
-  const custPhone = (document.getElementById('custPhoneInput')?.value || '').trim();
-  const now = new Date();
-  const dateStr = now.toLocaleString('ru', { day:'2-digit', month:'2-digit', year:'numeric', hour:'2-digit', minute:'2-digit' });
+  return R;
+}
+
+// Сброс ТОЛЬКО рабочего состояния (корзина, доставка, адрес, флаг «для
+// другого»). Снимок RECEIPT и currentOrderNum НЕ трогаем — они нужны, пока
+// открыт экран «Спасибо» (перерисовка чека и PDF).
+function resetWorkState() {
+  try { if (typeof clearCart === 'function') clearCart(); } catch (e) {}
+  try { if (typeof cart === 'object' && cart) for (const k of Object.keys(cart)) delete cart[k]; } catch (e) {}
+  try { if (typeof deliveryCost !== 'undefined') deliveryCost = 0; } catch (e) {}
+  try {
+    if (typeof forOther !== 'undefined' && forOther) {
+      forOther = false;
+      const t = document.getElementById('otherToggle'); if (t) t.classList.remove('on');
+      const op = document.getElementById('otherPhone'); if (op) op.style.display = 'none';
+    }
+  } catch (e) {}
+  ['addressInput', 'commentInput', 'phoneInput', 'custNameInput', 'custPhoneInput'].forEach(id => {
+    const el = document.getElementById(id); if (el) el.value = '';
+  });
+  try { if (typeof updateBadge === 'function') updateBadge(); } catch (e) {}
+}
+window.resetWorkState = resetWorkState;
+
+function showReceipt(orderNum) {
+  // Берём снимок; если его нет (открыли чек не сразу) — делаем сейчас.
+  const R = (RECEIPT && (!orderNum || String(RECEIPT.num) === String(orderNum)))
+    ? RECEIPT : (RECEIPT = snapshotReceipt(orderNum));
+  const num = R.num;
+  const items = R.items, total = R.total, delivery = R.delivery, totalAll = R.totalAll;
+  const address = R.address, comment = R.comment, payStr = R.payStr, payPhone = R.payPhone;
+  const custName = R.custName, custPhone = R.custPhone;
+  const dateStr = R.dateStr;
 
   document.getElementById('receiptDate').textContent = '№' + num + ' · ' + dateStr;
 
@@ -354,7 +415,7 @@ function showReceipt(orderNum) {
       </div>
     </div>`;
 
-  const recipientPhone = forOther ? document.getElementById('phoneInput').value.trim() : null;
+  const recipientPhone = R.recipientPhone;
   const pdfBtn = document.getElementById('pdfBtnWrap');
   if (pdfBtn) pdfBtn.style.display = 'block';
 
@@ -368,24 +429,22 @@ function showReceipt(orderNum) {
     </div>`;
 }
 
-function downloadPDF() {
-  const items = [];
-  for (const [id, qty] of Object.entries(cart)) {
-    if (qty <= 0) continue;
-    const item = findItem(id);
-    if (item) items.push({ ...item, qty });
+function getReceiptByNum(num) {
+  if (num != null) {
+    try {
+      const rc = JSON.parse(localStorage.getItem('yaya_receipts') || '{}');
+      if (rc[String(num)]) return rc[String(num)];
+    } catch (e) {}
   }
-  const { total } = getStats();
-  const delivery = deliveryCost || 0;
-  const totalAll = total + delivery;
-  const address  = document.getElementById('addressInput').value.trim();
-  const payStr   = getPayLabel();
-  const payPhone = getPayPhone();
-  const comment  = document.getElementById('commentInput').value.trim();
-  const recipientPhone = forOther ? document.getElementById('phoneInput').value.trim() : null;
-  const now = new Date();
-  const dateStr = now.toLocaleString('ru', { day:'2-digit', month:'2-digit', year:'numeric', hour:'2-digit', minute:'2-digit' });
-  const num = currentOrderNum || Date.now().toString().slice(-6);
+  return null;
+}
+function downloadPDF(orderNum) {
+  const R = getReceiptByNum(orderNum) || RECEIPT || snapshotReceipt(currentOrderNum);
+  const items = R.items, total = R.total, delivery = R.delivery, totalAll = R.totalAll;
+  const address = R.address, payStr = R.payStr, payPhone = R.payPhone, comment = R.comment;
+  const recipientPhone = R.recipientPhone;
+  const dateStr = R.dateStr;
+  const num = R.num;
 
   const html = `<!DOCTYPE html><html><head><meta charset="UTF-8"><title>Квитанция YaYa Chicken</title>
   <style>body{font-family:Arial,sans-serif;max-width:400px;margin:20px auto;padding:20px;color:#1a1a1a;}
@@ -699,35 +758,13 @@ function downloadPDF() {
 // стоимость доставки, флаг «для другого», номер) не сбрасывалось, и
 // оформить следующий заказ можно было только после перезагрузки.
 // Эта функция чисто обнуляет всё и возвращает в меню.
+// Кнопка «Сделать новый заказ» на экране «Спасибо». Рабочее состояние уже
+// сброшено автоматически (resetWorkState), здесь дочищаем снимок квитанции
+// и уводим в меню.
 function newOrder() {
-  try { if (typeof clearCart === 'function') clearCart(); } catch (e) {}
-  // корзина
-  try {
-    if (typeof cart === 'object' && cart) {
-      for (const k of Object.keys(cart)) delete cart[k];
-    }
-  } catch (e) {}
-  // стоимость доставки и зона
-  try { if (typeof deliveryCost !== 'undefined') deliveryCost = 0; } catch (e) {}
-  // «заказ для другого»
-  try {
-    if (typeof forOther !== 'undefined' && forOther) {
-      forOther = false;
-      const t = document.getElementById('otherToggle'); if (t) t.classList.remove('on');
-      const op = document.getElementById('otherPhone'); if (op) op.style.display = 'none';
-    }
-  } catch (e) {}
-  // номер и снимок квитанции
+  resetWorkState();
   currentOrderNum = null;
   try { RECEIPT = null; localStorage.removeItem('yaya_last_receipt'); } catch (e) {}
-  // очищаем поля ввода прошлого заказа
-  ['addressInput', 'commentInput', 'phoneInput', 'custNameInput', 'custPhoneInput'].forEach(id => {
-    const el = document.getElementById(id); if (el) el.value = '';
-  });
-  // обновляем бейджи корзины, если есть такая функция
-  try { if (typeof updateBadge === 'function') updateBadge(); } catch (e) {}
-  try { if (typeof renderCart === 'function') renderCart(); } catch (e) {}
-  // уводим в меню
   try {
     if (typeof goMenu === 'function') goMenu();
     else if (typeof showScreen === 'function') showScreen('menu');
@@ -736,24 +773,3 @@ function newOrder() {
   window.scrollTo(0, 0);
 }
 window.newOrder = newOrder;
-
-// Сброс состояния заказа БЕЗ перехода в меню (когда пользователь сам
-// ушёл с «Спасибо» через нижнюю навигацию).
-function resetOrderState() {
-  try { if (typeof cart === 'object' && cart) for (const k of Object.keys(cart)) delete cart[k]; } catch (e) {}
-  try { if (typeof deliveryCost !== 'undefined') deliveryCost = 0; } catch (e) {}
-  try {
-    if (typeof forOther !== 'undefined' && forOther) {
-      forOther = false;
-      const t = document.getElementById('otherToggle'); if (t) t.classList.remove('on');
-      const op = document.getElementById('otherPhone'); if (op) op.style.display = 'none';
-    }
-  } catch (e) {}
-  currentOrderNum = null;
-  try { RECEIPT = null; localStorage.removeItem('yaya_last_receipt'); } catch (e) {}
-  ['addressInput', 'commentInput', 'phoneInput', 'custNameInput', 'custPhoneInput'].forEach(id => {
-    const el = document.getElementById(id); if (el) el.value = '';
-  });
-  try { if (typeof updateBadge === 'function') updateBadge(); } catch (e) {}
-}
-window.resetOrderState = resetOrderState;

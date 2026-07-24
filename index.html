@@ -395,7 +395,7 @@ body.tv-open #cartBar{display:none!important}
         <div style="text-align:center;margin-top:16px;padding-top:12px;border-top:1px dashed #ccc"><div style="font-size:12px;color:#666;font-weight:700;line-height:1.7">Сохраните квитанцию для подтверждения заказа<br>Время доставки: ~45–60 минут<br>Спасибо, что выбрали YaYa Chicken</div></div>
       </div>
     </div>
-    <div id="pdfBtnWrap" style="width:100%"><button onclick="downloadPDF()" style="width:100%;padding:14px;background:var(--panel2);border:1px solid var(--gold);border-radius:15px;color:var(--gold);font:800 15px Nunito,sans-serif;cursor:pointer">Скачать квитанцию PDF</button></div>
+    <div style="font-size:12.5px;color:var(--text2);font-weight:700;text-align:center;line-height:1.5">Квитанция доступна в разделе «Заказы» — нажми на значок квитанции у заказа, чтобы открыть или скачать.</div>
     <button onclick="newOrder()" style="width:100%;padding:15px;background:var(--gold);border:none;border-radius:15px;color:#1a1400;font:900 15px Nunito,sans-serif;cursor:pointer">Сделать новый заказ</button>
   </div>
 </div>
@@ -982,9 +982,33 @@ let ordTimer=null, trackMaps={}, trackCourMk={}, trackSig='';
 /* стили для прогресса и карты (добавляются один раз) */
 (function(){const s=document.createElement('style');s.textContent=`
 .ord-card{background:var(--panel);border:1px solid var(--border);border-radius:16px;padding:16px;margin-bottom:14px}
-.ord-top{display:flex;align-items:center;justify-content:space-between;margin-bottom:4px}
+.ord-top{display:flex;align-items:center;justify-content:space-between;margin-bottom:4px;gap:10px}
 .ord-top h4{font-size:16px;font-weight:900}
+.ord-top .ord-right{display:flex;align-items:center;gap:10px}
 .ord-top .ord-total{font-family:'Bebas Neue';font-size:20px;color:var(--gold);letter-spacing:.4px}
+/* Премиальная иконка квитанции в карточке заказа */
+.rcpt-badge{width:40px;height:40px;flex:none;border-radius:12px;cursor:pointer;position:relative;
+  background:linear-gradient(150deg,#FFE9A6 0%,var(--gold) 55%,#C98700 100%);
+  border:1px solid rgba(255,255,255,.35);
+  box-shadow:0 4px 12px rgba(244,180,0,.35),inset 0 1px 2px rgba(255,255,255,.5);
+  display:flex;align-items:center;justify-content:center;transition:transform .15s,box-shadow .15s}
+.rcpt-badge:active{transform:scale(.93)}
+.rcpt-badge svg{width:22px;height:22px}
+.rcpt-badge::after{content:'';position:absolute;top:-3px;right:-3px;width:14px;height:14px;border-radius:50%;
+  background:radial-gradient(circle at 35% 30%,#fff,#FFD860);border:1.5px solid #fff;
+  box-shadow:0 1px 4px rgba(0,0,0,.35)}
+/* Модалка квитанции */
+.rcpt-modal{position:fixed;inset:0;z-index:300;background:rgba(0,0,0,.72);backdrop-filter:blur(6px);
+  display:none;align-items:flex-end;justify-content:center}
+.rcpt-modal.on{display:flex;animation:rcptFade .2s ease}
+@keyframes rcptFade{from{opacity:0}to{opacity:1}}
+.rcpt-sheet{width:100%;max-width:480px;max-height:92vh;overflow-y:auto;background:var(--bg);
+  border-radius:22px 22px 0 0;padding:8px 16px calc(20px + env(safe-area-inset-bottom));animation:rcptUp .28s cubic-bezier(.2,.9,.3,1)}
+@keyframes rcptUp{from{transform:translateY(100%)}to{transform:translateY(0)}}
+.rcpt-grip{width:40px;height:4px;border-radius:2px;background:var(--border2);margin:6px auto 14px}
+.rcpt-dl{width:100%;padding:15px;margin-top:14px;background:var(--gold);border:none;border-radius:15px;
+  color:#1a1400;font:900 15px Nunito,sans-serif;cursor:pointer;display:flex;align-items:center;justify-content:center;gap:9px}
+.rcpt-dl svg{width:19px;height:19px;fill:none;stroke:#1a1400;stroke-width:2.4;stroke-linecap:round;stroke-linejoin:round}
 .ord-date{font-size:12px;color:var(--text2);font-weight:700;margin-bottom:14px}
 .steps{display:flex;align-items:flex-start;margin:6px 0 4px}
 .step{flex:1;display:flex;flex-direction:column;align-items:center;position:relative;font-size:10px;font-weight:800;color:var(--muted);text-align:center;line-height:1.2}
@@ -1034,9 +1058,16 @@ function stepsHtml(cur){
     return `<div class="step ${cls}"><div class="dot">${inner}</div>${l}</div>`;
   }).join('')+'</div>';
 }
+function rcptBadge(num){
+  let has=false; try{ const rc=JSON.parse(localStorage.getItem('yaya_receipts')||'{}'); has=!!rc[String(num)]; }catch(e){}
+  if(!has) return '';
+  return `<div class="rcpt-badge" onclick="openReceipt('${num}')" title="Квитанция">
+    <svg viewBox="0 0 24 24" fill="none"><path d="M6 2h9l4 4v15.5a.5.5 0 0 1-.75.43L16 20.5l-2 1.2-2-1.2-2 1.2-2-1.2-2.25 1.43A.5.5 0 0 1 3 21.5V5a3 3 0 0 1 3-3z" fill="#3a2b00" opacity=".22"/><path d="M8 8h6M8 11.5h6M8 15h4" stroke="#3a2b00" stroke-width="1.7" stroke-linecap="round"/></svg>
+  </div>`;
+}
 function ordCardHtml(v){
   if(v.status==='cancel'){
-    return `<div class="ord-card"><div class="ord-top"><h4>Заказ №${v.num}</h4><div class="ord-total">${(v.total||0).toLocaleString('ru-RU')} тг</div></div>
+    return `<div class="ord-card"><div class="ord-top"><h4>Заказ №${v.num}</h4><div class="ord-right">${rcptBadge(v.num)}<div class="ord-total">${(v.total||0).toLocaleString('ru-RU')} тг</div></div></div>
       <div class="ord-date">${v.date}</div><div class="ord-cancel">Заказ отменён</div></div>`;
   }
   const cur=stepIndex(v);
@@ -1050,7 +1081,7 @@ function ordCardHtml(v){
   } else if(cur===2){
     extra=`<div class="track-note" style="margin-top:12px">Заказ готов, скоро выедет курьер 🛵</div>`;
   }
-  return `<div class="ord-card"><div class="ord-top"><h4>Заказ №${v.num}</h4><div class="ord-total">${(v.total||0).toLocaleString('ru-RU')} тг</div></div>
+  return `<div class="ord-card"><div class="ord-top"><h4>Заказ №${v.num}</h4><div class="ord-right">${rcptBadge(v.num)}<div class="ord-total">${(v.total||0).toLocaleString('ru-RU')} тг</div></div></div>
     <div class="ord-date">${v.date}</div>${stepsHtml(cur)}${extra}</div>`;
 }
 
@@ -1129,13 +1160,7 @@ function courIcon(p){ return L.divIcon({className:'',html:courMarkerHtml(p),icon
 function startOrdersRefresh(){ renderOrders(); if(ordTimer)clearInterval(ordTimer); ordTimer=setInterval(renderOrders,12000); }
 function stopOrdersRefresh(){ if(ordTimer){clearInterval(ordTimer);ordTimer=null;} }
 if(window.navTo){ const _navTo=window.navTo; window.navTo=function(screen,el){
-  // Если уходим с экрана «Спасибо» через нижнее меню (не через кнопку
-  // «Новый заказ») — всё равно сбрасываем прошлый заказ, чтобы следующий
-  // оформлялся без перезагрузки.
-  const succ=document.getElementById('screen-success');
-  const leavingSuccess = succ && succ.classList.contains('active') && screen!=='success';
   _navTo(screen,el);
-  if(leavingSuccess && typeof window.resetOrderState==='function') window.resetOrderState();
   if(screen==='orders')startOrdersRefresh(); else stopOrdersRefresh();
 }; }
 
@@ -1572,6 +1597,62 @@ function closeFsTrack(){
   const d=document.getElementById('fullscreenMap');
   if(d)d.classList.remove('active');
   if(fsMap){setTimeout(()=>{fsMap.remove();fsMap=null;},300);}
+}
+
+/* ── Квитанция: раскрытие по тапу на иконку в заказе ── */
+function money(n){ return (Number(n)||0).toLocaleString('ru-RU')+' тг'; }
+function escH(s){ return String(s==null?'':s).replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c])); }
+function getReceipt(num){
+  try{ const rc=JSON.parse(localStorage.getItem('yaya_receipts')||'{}'); return rc[String(num)]||null; }catch(e){ return null; }
+}
+function openReceipt(num){
+  const R=getReceipt(num); if(!R) return;
+  let modal=document.getElementById('rcptModal');
+  if(!modal){
+    modal=document.createElement('div'); modal.id='rcptModal'; modal.className='rcpt-modal';
+    modal.onclick=e=>{ if(e.target===modal) closeReceipt(); };
+    document.body.appendChild(modal);
+  }
+  const items=(R.items||[]).map(i=>`
+    <div style="padding:6px 0;border-bottom:1px solid #eee;display:flex;justify-content:space-between;gap:8px">
+      <div style="flex:1;min-width:0"><div style="font-size:13px;font-weight:800;color:#111">${escH(i.name)} ×${i.qty||1}</div>${i.desc?`<div style="font-size:11px;color:#999;margin-top:2px">${escH(i.desc)}</div>`:''}</div>
+      <span style="font-size:13px;font-weight:900;white-space:nowrap;color:#111">${money((Number(i.price)||0)*(Number(i.qty)||1))}</span>
+    </div>`).join('') || '<div style="font-size:12.5px;color:#999;padding:2px 0">Состав уточняйте у оператора</div>';
+  const dev=Number(R.delivery)||0;
+  const info=[
+    R.custName?'👤 '+escH(R.custName):'',
+    R.custPhone?'📞 '+escH(R.custPhone):'',
+    R.address?'📍 '+escH(R.address):'',
+    R.comment?'💬 '+escH(R.comment):'',
+    R.payStr?escH(R.payStr):'',
+  ].filter(Boolean).join('<br>');
+  modal.innerHTML=`<div class="rcpt-sheet">
+    <div class="rcpt-grip"></div>
+    <div style="width:100%;background:#fff;border-radius:16px;overflow:hidden;color:#111">
+      <div style="background:var(--gold);padding:16px;text-align:center">
+        <div style="color:#111;font-size:18px;font-weight:900">YaYa Chicken</div>
+        <div style="color:#3a3a3a;font-size:12px;font-weight:700">ул. Абая, 49/5 · Экибастуз</div>
+        <div style="color:#555;font-size:11px;margin-top:4px">№${escH(R.num)} · ${escH(R.dateStr||'')}</div>
+      </div>
+      <div style="padding:16px">
+        <div style="font-size:12px;font-weight:800;color:#8a8a8a;text-transform:uppercase;letter-spacing:.5px;margin-bottom:8px">Состав заказа</div>
+        ${items}
+        <div style="margin-top:10px">
+          <div style="display:flex;justify-content:space-between;padding:4px 0;font-size:13px;color:#444;font-weight:700"><span>Сумма заказа</span><span>${money(R.total)}</span></div>
+          <div style="display:flex;justify-content:space-between;padding:4px 0;font-size:13px;color:#444;font-weight:700"><span>Доставка</span><span style="color:#c98700">${dev>0?money(dev):'Бесплатно'}</span></div>
+          <div style="display:flex;justify-content:space-between;padding:8px 0;margin-top:4px;border-top:2px solid #111;font-size:16px;font-weight:900;color:#111"><span>К ОПЛАТЕ</span><span style="color:#c98700">${money(R.totalAll)}</span></div>
+        </div>
+        ${info?`<div style="background:#f5f5f5;border-radius:10px;padding:10px;margin-top:12px;font-size:12px;font-weight:700;color:#555;line-height:1.8">${info}</div>`:''}
+        <div style="text-align:center;margin-top:14px;padding-top:12px;border-top:1px dashed #ccc;font-size:12px;color:#666;font-weight:700;line-height:1.7">Сохраните квитанцию для подтверждения заказа<br>Время доставки: ~45–60 минут<br>Спасибо, что выбрали YaYa Chicken</div>
+      </div>
+    </div>
+    <button class="rcpt-dl" onclick="downloadPDF('${escH(R.num)}')"><svg viewBox="0 0 24 24"><path d="M12 3v12m0 0 4-4m-4 4-4-4M4 17v2a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-2"/></svg>Скачать квитанцию PDF</button>
+  </div>`;
+  requestAnimationFrame(()=>modal.classList.add('on'));
+}
+function closeReceipt(){
+  const modal=document.getElementById('rcptModal');
+  if(modal) modal.classList.remove('on');
 }
 
 /* PWA */
