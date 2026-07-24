@@ -288,6 +288,10 @@ function confirmOrder() {
           clearCart();
           showReceipt(currentOrderNum);
           showScreen('success');
+          // Возвращаем кнопку в рабочее состояние — иначе следующий заказ
+          // не оформить без перезагрузки (она осталась бы disabled).
+          btn.disabled = false;
+          btn.textContent = 'Подтвердить заказ';
           // Заказ ушёл, квитанция построена из снимка и от корзины больше
           // не зависит. Сразу обнуляем рабочее состояние прошлого заказа —
           // куда бы клиент ни ушёл (ТВ, главная, закрыл корзину), следующий
@@ -376,6 +380,14 @@ function resetWorkState() {
   ['addressInput', 'commentInput', 'phoneInput', 'custNameInput', 'custPhoneInput'].forEach(id => {
     const el = document.getElementById(id); if (el) el.value = '';
   });
+  // Обновляем счётчики на карточках меню и полоску корзины, чтобы после
+  // заказа кнопки +/− на главной вернулись в исходное состояние.
+  try { if (typeof updateCartBar === 'function') updateCartBar(); } catch (e) {}
+  try {
+    if (typeof updateCard === 'function' && typeof MENU !== 'undefined') {
+      MENU.forEach(cat => (cat.items || []).forEach(it => { try { updateCard(it.id); } catch (e) {} }));
+    }
+  } catch (e) {}
   try { if (typeof updateBadge === 'function') updateBadge(); } catch (e) {}
 }
 window.resetWorkState = resetWorkState;
