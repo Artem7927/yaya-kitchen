@@ -191,6 +191,23 @@ body.gsheet-lock{overflow:hidden}
 .qty-control{display:flex;align-items:center;gap:10px}
 .qty-btn{width:28px;height:28px;border-radius:9px;border:1px solid var(--border2);background:var(--panel2);color:var(--text);font-size:18px;font-weight:800;cursor:pointer;line-height:1}
 .qty-num{font-weight:900;min-width:16px;text-align:center;color:var(--text)}
+/* Карточки товара на экране оформления (как в «Заказах») */
+.co-prod{padding:8px 0;border-bottom:1px solid var(--gray2)}
+.co-prod:last-child{border-bottom:none}
+.co-prod.has-desc{cursor:pointer}
+.co-prod-row{display:flex;align-items:center;gap:10px}
+.co-th{width:46px;height:46px;border-radius:11px;background-size:cover;background-position:center;flex:0 0 auto;background-color:var(--panel2)}
+.co-th-ph{display:flex;align-items:center;justify-content:center;color:var(--gold);font-weight:900;font-size:18px}
+.co-pinfo{flex:1;min-width:0}
+.co-pname{font-size:13.5px;font-weight:800;color:var(--text);line-height:1.25;display:flex;align-items:center;gap:5px}
+.co-chev{color:var(--text2);font-size:14px;transition:transform .2s;line-height:1}
+.co-prod.open .co-chev{transform:rotate(180deg)}
+.co-pmeta{font-size:12px;color:var(--text2);font-weight:700;margin-top:2px}
+.co-pctrl{display:flex;align-items:center;gap:6px;flex:0 0 auto}
+.co-psum{font-size:13.5px;font-weight:900;color:var(--orange);white-space:nowrap;min-width:64px;text-align:right}
+.co-pdesc{display:none;font-size:12px;color:var(--text2);font-weight:600;line-height:1.5;margin:8px 0 2px 56px}
+.co-prod.open .co-pdesc{display:block;animation:coFade .18s ease}
+@keyframes coFade{from{opacity:0;transform:translateY(-3px)}to{opacity:1;transform:none}}
 .cart-summary{margin:0 16px}
 .summary-row{display:flex;justify-content:space-between;padding:7px 0;font-size:14px}
 .summary-label{color:var(--text2);font-weight:700}.summary-val{font-weight:800;color:var(--text)}
@@ -1628,12 +1645,15 @@ function openReceipt(num){
       <span style="font-size:13.5px;font-weight:900;white-space:nowrap;color:#111">${money((Number(i.price)||0)*(Number(i.qty)||1))}</span>
     </div>`).join('') || '<div style="font-size:12.5px;color:#999;padding:2px 0">Состав уточняйте у оператора</div>';
   const dev=Number(R.delivery)||0;
+  // payStr приходит с HTML-иконкой (<svg>...); в модалке нам нужен только
+  // текст, иначе на экране виден сырой код. Вырезаем любые теги.
+  const payText=String(R.payStr||'').replace(/<[^>]*>/g,'').trim();
   const info=[
     R.custName?'👤 '+escH(R.custName):'',
     R.custPhone?'📞 '+escH(R.custPhone):'',
     R.address?'📍 '+escH(R.address):'',
     R.comment?'💬 '+escH(R.comment):'',
-    R.payStr?escH(R.payStr):'',
+    payText?'💳 '+escH(payText):'',
   ].filter(Boolean).join('<br>');
   modal.innerHTML=`<div class="rcpt-sheet">
     <div class="rcpt-grip"></div>

@@ -122,22 +122,29 @@ function renderCheckout() {
 
   document.getElementById('checkoutItems').innerHTML = `
     <div class="form-label" style="margin-bottom:10px;">${ic('list',16)}Состав заказа</div>
-    ${items.map(i => `
-      <div style="padding:8px 0;border-bottom:1px solid var(--gray2);">
-        <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:8px;">
-          <div style="flex:1;min-width:0;">
-            <div style="font-size:13px;font-weight:800;line-height:1.3;">${i.name}</div>
-            ${i.desc ? `<div class="co-item-desc">${i.desc}</div>` : ''}
-            <div style="font-size:12px;color:var(--text2);font-weight:600;margin-top:3px;">${i.price.toLocaleString('ru')} тг × ${i.qty}</div>
+    ${items.map(i => {
+      const th = i.img
+        ? `<div class="co-th" style="background-image:url(&quot;${String(i.img).replace(/"/g,'%22')}&quot;)"></div>`
+        : `<div class="co-th co-th-ph">${i.emoji || (i.name||'?').charAt(0)}</div>`;
+      const hasDesc = !!i.desc;
+      return `
+      <div class="co-prod${hasDesc?' has-desc':''}" ${hasDesc?`onclick="if(!event.target.closest('.qty-btn'))this.classList.toggle('open')"`:''}>
+        <div class="co-prod-row">
+          ${th}
+          <div class="co-pinfo">
+            <div class="co-pname">${i.name}${hasDesc?'<span class="co-chev">⌄</span>':''}</div>
+            <div class="co-pmeta">${i.price.toLocaleString('ru')} тг × ${i.qty}</div>
           </div>
-          <div style="display:flex;align-items:center;gap:6px;flex-shrink:0;margin-top:2px;">
+          <div class="co-pctrl">
             <button class="qty-btn" onclick="removeItem('${i.id}');renderCheckout()">−</button>
             <span class="qty-num">${i.qty}</span>
             <button class="qty-btn" onclick="addItem('${i.id}');renderCheckout()">+</button>
-            <div style="font-size:14px;font-weight:900;color:var(--orange);min-width:70px;text-align:right;">${(i.price * i.qty).toLocaleString('ru')} тг</div>
           </div>
+          <div class="co-psum">${(i.price * i.qty).toLocaleString('ru')} тг</div>
         </div>
-      </div>`).join('')}`;
+        ${hasDesc?`<div class="co-pdesc">${i.desc}</div>`:''}
+      </div>`;
+    }).join('')}`;
 
   document.getElementById('checkoutSummary').innerHTML = `
     <div class="form-label" style="margin-bottom:10px;">${ic('clip',16)}Итог</div>
@@ -483,6 +490,8 @@ function downloadPDF(orderNum) {
     <div class="footer">Сохраните квитанцию для подтверждения заказа<br>Время доставки: ~45-60 минут<br>Спасибо что выбрали YaYa Chicken!</div>
   </div></body></html>`;
 
+  // Тост «Квитанция скачивается…»
+  rcptToast('Квитанция скачивается…');
   try {
     const blob = new Blob([html], { type: 'text/html' });
     const url  = URL.createObjectURL(blob);
@@ -490,10 +499,41 @@ function downloadPDF(orderNum) {
     a.href = url; a.download = `YaYa_Kvitanciya_${num}.html`;
     document.body.appendChild(a); a.click(); document.body.removeChild(a);
     setTimeout(() => URL.revokeObjectURL(url), 1000);
+    // Закрываем квитанцию, показываем «готово» и уводим на главную.
+    setTimeout(() => {
+      try { if (typeof closeReceipt === 'function') closeReceipt(); } catch (e) {}
+      rcptToast('Квитанция скачана ✓');
+      setTimeout(() => {
+        try {
+          if (typeof goMenu === 'function') goMenu();
+          else if (typeof navTo === 'function') navTo('menu', document.getElementById('nav-home'));
+          else if (typeof showScreen === 'function') showScreen('menu');
+        } catch (e) {}
+        window.scrollTo(0, 0);
+      }, 700);
+    }, 600);
   } catch (e) {
     window.open('data:text/html;charset=utf-8,' + encodeURIComponent(html), '_blank');
   }
 }
+
+// Небольшой тост-уведомление внизу экрана
+function rcptToast(text) {
+  let t = document.getElementById('rcptToast');
+  if (!t) {
+    t = document.createElement('div');
+    t.id = 'rcptToast';
+    t.style.cssText = 'position:fixed;left:50%;bottom:90px;transform:translateX(-50%) translateY(20px);z-index:400;'
+      + 'background:#1a1a1a;color:#fff;font:800 13.5px Nunito,sans-serif;padding:12px 20px;border-radius:14px;'
+      + 'box-shadow:0 6px 24px rgba(0,0,0,.5);border:1px solid rgba(244,180,0,.4);opacity:0;transition:opacity .25s,transform .25s;pointer-events:none;max-width:88vw;text-align:center';
+    document.body.appendChild(t);
+  }
+  t.textContent = text;
+  requestAnimationFrame(() => { t.style.opacity = '1'; t.style.transform = 'translateX(-50%) translateY(0)'; });
+  clearTimeout(rcptToast._t);
+  rcptToast._t = setTimeout(() => { t.style.opacity = '0'; t.style.transform = 'translateX(-50%) translateY(20px)'; }, 2200);
+}
+window.rcptToast = rcptToast;
 
 // ── Автонастройка витрины под 3 шага (без ручной правки index.html) ────
 // Создаёт экран «Контакты», перенаправляет кнопку корзины на шаг 1
