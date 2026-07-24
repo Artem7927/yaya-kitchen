@@ -275,6 +275,9 @@ function confirmOrder() {
           clearTimeout(timeout);
           console.log('order sent:', r);
           if (r.num) currentOrderNum = r.num;
+          // Снимок заказа делаем ДО очистки корзины — иначе квитанция
+          // читает уже пустой cart и показывает нули.
+          RECEIPT = snapshotReceipt(currentOrderNum);
           clearCart();
           showReceipt(currentOrderNum);
           showScreen('success');
@@ -290,8 +293,13 @@ function confirmOrder() {
 }
 
 // ── Квитанция (Экран 5) ───────────────────────────────────────────────
-function showReceipt(orderNum) {
-  const num = orderNum || currentOrderNum || '—';
+// Снимок заказа. Делается в момент отправки, до clearCart(), и переживает
+// перезагрузку страницы — чтобы и чек, и PDF всегда показывали реальные
+// цифры, а не пустую корзину.
+let RECEIPT = null;
+try { RECEIPT = JSON.parse(localStorage.getItem('yaya_last_receipt') || 'null'); } catch (e) {}
+
+function snapshotReceipt(orderNum) {
   const items = [];
   for (const [id, qty] of Object.entries(cart)) {
     if (qty <= 0) continue;
@@ -300,27 +308,42 @@ function showReceipt(orderNum) {
   }
   const { total } = getStats();
   const delivery = deliveryCost || 0;
-  const totalAll = total + delivery;
-  const address = document.getElementById('addressInput').value.trim();
-
-  // Сохраняем состав заказа (с картинками), чтобы во вкладке «Заказы»
-  // карточку можно было раскрыть по тапу и показать товары + полную стоимость.
+  const now = new Date();
+  const R = {
+    num: orderNum || currentOrderNum || '—',
+    items: items.map(i => ({ id: i.id, name: i.name, desc: i.desc || '', price: Number(i.price) || 0, qty: Number(i.qty) || 1,
+                             img: i.img || i.image || i.photo || '', emoji: i.emoji || '' })),
+    total: total,
+    delivery: delivery,
+    totalAll: total + delivery,
+    address: (document.getElementById('addressInput')?.value || '').trim(),
+    comment: (document.getElementById('commentInput')?.value || '').trim(),
+    payStr: getPayLabel(),
+    payPhone: getPayPhone(),
+    custName: (document.getElementById('custNameInput')?.value || '').trim(),
+    custPhone: (document.getElementById('custPhoneInput')?.value || '').trim(),
+    recipientPhone: forOther ? (document.getElementById('phoneInput')?.value || '').trim() : null,
+    dateStr: now.toLocaleString('ru', { day:'2-digit', month:'2-digit', year:'numeric', hour:'2-digit', minute:'2-digit' })
+  };
+  try { localStorage.setItem('yaya_last_receipt', JSON.stringify(R)); } catch (e) {}
+  // Состав заказа для вкладки «Заказы» — карточку можно раскрыть по тапу.
   try {
     const _store = JSON.parse(localStorage.getItem('yaya_order_items') || '{}');
-    _store[String(num)] = {
-      items: items.map(i => ({ id: i.id, name: i.name, price: i.price, qty: i.qty,
-                               img: i.img || i.image || i.photo || '', emoji: i.emoji || '' })),
-      total: total, delivery: delivery
-    };
+    _store[String(R.num)] = { items: R.items, total: R.total, delivery: R.delivery };
     localStorage.setItem('yaya_order_items', JSON.stringify(_store));
   } catch (e) {}
-  const comment = document.getElementById('commentInput').value.trim();
-  const payStr  = getPayLabel();
-  const payPhone = getPayPhone();
-  const custName  = (document.getElementById('custNameInput')?.value  || '').trim();
-  const custPhone = (document.getElementById('custPhoneInput')?.value || '').trim();
-  const now = new Date();
-  const dateStr = now.toLocaleString('ru', { day:'2-digit', month:'2-digit', year:'numeric', hour:'2-digit', minute:'2-digit' });
+  return R;
+}
+
+function showReceipt(orderNum) {
+  // Если снимка нет (чек открыли не сразу после оформления) — снимаем сейчас.
+  const R = (RECEIPT && (!orderNum || String(RECEIPT.num) === String(orderNum)))
+    ? RECEIPT : (RECEIPT = snapshotReceipt(orderNum));
+  const num = R.num;
+  const items = R.items, total = R.total, delivery = R.delivery, totalAll = R.totalAll;
+  const address = R.address, comment = R.comment, payStr = R.payStr, payPhone = R.payPhone;
+  const custName = R.custName, custPhone = R.custPhone;
+  const dateStr = R.dateStr;
 
   document.getElementById('receiptDate').textContent = '№' + num + ' · ' + dateStr;
 
@@ -354,7 +377,7 @@ function showReceipt(orderNum) {
       </div>
     </div>`;
 
-  const recipientPhone = forOther ? document.getElementById('phoneInput').value.trim() : null;
+  const recipientPhone = R.recipientPhone;
   const pdfBtn = document.getElementById('pdfBtnWrap');
   if (pdfBtn) pdfBtn.style.display = 'block';
 
@@ -369,23 +392,12 @@ function showReceipt(orderNum) {
 }
 
 function downloadPDF() {
-  const items = [];
-  for (const [id, qty] of Object.entries(cart)) {
-    if (qty <= 0) continue;
-    const item = findItem(id);
-    if (item) items.push({ ...item, qty });
-  }
-  const { total } = getStats();
-  const delivery = deliveryCost || 0;
-  const totalAll = total + delivery;
-  const address  = document.getElementById('addressInput').value.trim();
-  const payStr   = getPayLabel();
-  const payPhone = getPayPhone();
-  const comment  = document.getElementById('commentInput').value.trim();
-  const recipientPhone = forOther ? document.getElementById('phoneInput').value.trim() : null;
-  const now = new Date();
-  const dateStr = now.toLocaleString('ru', { day:'2-digit', month:'2-digit', year:'numeric', hour:'2-digit', minute:'2-digit' });
-  const num = currentOrderNum || Date.now().toString().slice(-6);
+  const R = RECEIPT || snapshotReceipt(currentOrderNum);
+  const items = R.items, total = R.total, delivery = R.delivery, totalAll = R.totalAll;
+  const address = R.address, payStr = R.payStr, payPhone = R.payPhone, comment = R.comment;
+  const recipientPhone = R.recipientPhone;
+  const dateStr = R.dateStr;
+  const num = R.num;
 
   const html = `<!DOCTYPE html><html><head><meta charset="UTF-8"><title>Квитанция YaYa Chicken</title>
   <style>body{font-family:Arial,sans-serif;max-width:400px;margin:20px auto;padding:20px;color:#1a1a1a;}
@@ -409,7 +421,8 @@ function downloadPDF() {
         <div class="item-row"><span>${i.name} ×${i.qty}</span><span>${(i.price * i.qty).toLocaleString('ru')} тг</span></div>
         ${i.desc ? `<div class="item-desc">${i.desc}</div>` : ''}
       </div>`).join('')}
-    <div class="total-row" style="color:#666;margin-top:4px;"><span>Доставка</span><span>${delivery > 0 ? delivery.toLocaleString('ru') + ' тг' : 'Бесплатно'}</span></div>
+    <div class="total-row" style="margin-top:4px;"><span>Сумма заказа</span><span>${total.toLocaleString('ru')} тг</span></div>
+    <div class="total-row" style="color:#666;"><span>Доставка</span><span>${delivery > 0 ? delivery.toLocaleString('ru') + ' тг' : 'Бесплатно'}</span></div>
     <div class="total-final"><span>К ОПЛАТЕ</span><span style="color:#F4821F;">${totalAll.toLocaleString('ru')} тг</span></div>
     <div class="info">${ic('pin')}${address}${comment ? '<br>' + ic('chat') + comment : ''}${recipientPhone ? '<br>' + ic('user') + 'Получатель: ' + recipientPhone : ''}${payPhone ? '<br>' + ic('device') + 'Счёт на номер: ' + payPhone : ''}<br>${payStr}</div>
     <div class="footer">Сохраните квитанцию для подтверждения заказа<br>Время доставки: ~45-60 минут<br>Спасибо что выбрали YaYa Chicken!</div>
