@@ -121,7 +121,7 @@ function renderCheckout() {
   const address = document.getElementById('addressInput').value.trim();
 
   document.getElementById('checkoutItems').innerHTML = `
-    <div class="form-label" style="margin-bottom:10px;">${ic('list',16)}Состав заказа</div>
+    <div class="form-label" onclick="this.parentElement.classList.toggle('acc-open')">${ic('list',16)}Состав заказа</div>
     ${items.map(i => {
       const th = i.img
         ? `<div class="co-th" style="background-image:url(&quot;${String(i.img).replace(/"/g,'%22')}&quot;)"></div>`
@@ -147,7 +147,7 @@ function renderCheckout() {
     }).join('')}`;
 
   document.getElementById('checkoutSummary').innerHTML = `
-    <div class="form-label" style="margin-bottom:10px;">${ic('clip',16)}Итог</div>
+    <div class="form-label" onclick="this.parentElement.classList.toggle('acc-open')">${ic('clip',16)}Итог</div>
     <div class="summary-row">
       <span class="summary-label">${ic('pin')}Адрес</span>
       <span style="font-size:12px;font-weight:700;text-align:right;max-width:190px;color:var(--text);">${address}</span>
@@ -405,18 +405,21 @@ function showReceipt(orderNum) {
   document.getElementById('receiptDate').textContent = '№' + num + ' · ' + dateStr;
 
   document.getElementById('receiptItems').innerHTML =
-    '<div style="font-size:12px;font-weight:800;color:var(--text2);text-transform:uppercase;letter-spacing:0.5px;margin-bottom:8px;">Состав заказа</div>' +
-    items.map(i => `
-      <div style="padding:6px 0;border-bottom:1px solid var(--gray2);">
-        <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:6px;">
-          <div style="flex:1;min-width:0;">
-            <div style="font-size:13px;font-weight:800;">${i.name} ×${i.qty}</div>
-            ${i.desc ? `<div class="receipt-item-desc">${i.desc}</div>` : ''}
-          </div>
-          <span style="font-size:13px;font-weight:900;white-space:nowrap;">${(i.price * i.qty).toLocaleString('ru')} тг</span>
+    '<div style="font-size:12px;font-weight:800;color:#8a8a8a;text-transform:uppercase;letter-spacing:0.5px;margin-bottom:8px;">Состав заказа</div>' +
+    items.map(i => {
+      const th = i.img
+        ? `<div style="width:46px;height:46px;border-radius:11px;background:url('${String(i.img).replace(/'/g,'%27')}') center/cover;flex:0 0 auto"></div>`
+        : `<div style="width:46px;height:46px;border-radius:11px;background:#f0f0f0;display:flex;align-items:center;justify-content:center;font-weight:900;font-size:18px;color:#c98700;flex:0 0 auto">${(i.name||'?').charAt(0)}</div>`;
+      return `
+      <div style="padding:8px 0;border-bottom:1px solid #eee;display:flex;align-items:center;gap:10px;">
+        ${th}
+        <div style="flex:1;min-width:0;">
+          <div style="font-size:13.5px;font-weight:800;color:#111;line-height:1.25;">${i.name}</div>
+          <div style="font-size:12px;color:#999;font-weight:700;margin-top:2px;">${i.qty} × ${(Number(i.price)||0).toLocaleString('ru')} тг</div>
         </div>
-      </div>`
-    ).join('');
+        <span style="font-size:13.5px;font-weight:900;white-space:nowrap;color:#111;">${(i.price * i.qty).toLocaleString('ru')} тг</span>
+      </div>`;
+    }).join('');
 
   document.getElementById('receiptTotal').innerHTML =
     `<div style="margin-top:8px;">
@@ -489,7 +492,7 @@ function downloadPDF(orderNum) {
     ${items.map(i => {
       const th = i.img
         ? `<div class="item-th" style="background-image:url('${i.img}')"></div>`
-        : `<div class="item-th item-th-ph">${(i.emoji || (i.name||'?').charAt(0))}</div>`;
+        : `<div class="item-th item-th-ph">${(i.name||'?').charAt(0)}</div>`;
       return `<div class="item-block">${th}
         <div class="item-info"><div class="item-name">${i.name}</div><div class="item-meta">${i.qty} × ${(Number(i.price)||0).toLocaleString('ru')} тг</div></div>
         <div class="item-sum">${(i.price * i.qty).toLocaleString('ru')} тг</div>
@@ -498,7 +501,7 @@ function downloadPDF(orderNum) {
     <div class="total-row" style="margin-top:6px;"><span>Сумма заказа</span><span>${total.toLocaleString('ru')} тг</span></div>
     <div class="total-row" style="color:#666;"><span>Доставка</span><span>${delivery > 0 ? delivery.toLocaleString('ru') + ' тг' : 'Бесплатно'}</span></div>
     <div class="total-final"><span>К ОПЛАТЕ</span><span style="color:#F4821F;">${totalAll.toLocaleString('ru')} тг</span></div>
-    <div class="info">${ic('pin')}${address}${comment ? '<br>' + ic('chat') + comment : ''}${recipientPhone ? '<br>' + ic('user') + 'Получатель: ' + recipientPhone : ''}${payPhone ? '<br>' + ic('device') + 'Счёт на номер: ' + payPhone : ''}<br>${payStr}</div>
+    <div class="info">${R.custName ? ic('user') + R.custName + '<br>' : ''}${R.custPhone ? ic('phone') + R.custPhone + '<br>' : ''}${ic('pin')}${address}${comment ? '<br>' + ic('chat') + comment : ''}${recipientPhone ? '<br>' + ic('user') + 'Получатель: ' + recipientPhone : ''}${payPhone ? '<br>' + ic('device') + 'Счёт на номер: ' + payPhone : ''}<br>${payStr}</div>
     <div class="footer">Сохраните квитанцию для подтверждения заказа<br>Время доставки: ~45-60 минут<br>Спасибо что выбрали YaYa Chicken!</div>
   </div></body></html>`;
 

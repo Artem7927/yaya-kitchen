@@ -215,6 +215,11 @@ body.gsheet-lock{overflow:hidden}
 .summary-total-label{font-weight:900;font-size:16px}.summary-total-val{font-weight:900;font-size:18px;color:var(--gold)}
 .form-block{background:var(--panel);border:1px solid var(--border);border-radius:16px;padding:14px;margin-bottom:14px}
 .form-label{display:flex;align-items:center;gap:8px;font-weight:900;font-size:14px;color:var(--text);margin-bottom:10px}
+.form-block.acc>.form-label{cursor:pointer;user-select:none;margin-bottom:0}
+.form-block.acc.acc-open>.form-label{margin-bottom:10px}
+.form-block.acc>.form-label::after{content:'⌄';margin-left:auto;font-size:18px;line-height:1;opacity:.6;transition:transform .2s}
+.form-block.acc.acc-open>.form-label::after{transform:rotate(180deg)}
+.form-block.acc:not(.acc-open)>:not(.form-label){display:none!important}
 .form-label svg{width:17px;height:17px;fill:var(--gold)}
 .form-input{width:100%;background:var(--panel2);border:1px solid var(--border2);border-radius:12px;padding:12px;color:var(--text);font:600 14px Nunito,sans-serif;resize:none}
 .form-input::placeholder{color:var(--muted)}
@@ -345,7 +350,7 @@ body.tv-open #cartBar{display:none!important}
 
 <!-- ── ЭКРАН 2: КОРЗИНА ── -->
 <div class="screen cart-screen" id="screen-cart">
-  <div class="header"><button class="back-btn" onclick="goMenu()">← Меню</button><div class="h-title">Корзина</div><div style="width:60px"></div></div>
+  <div class="header"><button class="back-btn" onclick="goMenu()">← Меню</button><div class="h-title"></div><div style="width:60px"></div></div>
   <div class="cart-items" id="cartItems"></div>
   <div class="cart-summary" id="cartSummary"></div>
   <button class="next-btn" onclick="goAddress()">Оформить заказ</button>
@@ -380,10 +385,10 @@ body.tv-open #cartBar{display:none!important}
 <div class="screen order-screen" id="screen-checkout">
   <div class="header"><button class="back-btn" onclick="goAddress()">← Адрес</button><div class="h-title">Ваш заказ</div><div style="width:60px"></div></div>
   <div class="order-form">
-    <div class="form-block" id="checkoutItems"></div>
-    <div class="form-block" id="checkoutSummary"></div>
-    <div class="form-block">
-      <div class="form-label"><svg><use href="#ic-card"/></svg>Способ оплаты</div>
+    <div class="form-block acc" id="checkoutItems"></div>
+    <div class="form-block acc" id="checkoutSummary"></div>
+    <div class="form-block acc">
+      <div class="form-label" onclick="this.parentElement.classList.toggle('acc-open')"><svg><use href="#ic-card"/></svg>Способ оплаты</div>
       <div class="pay-options">
         <div class="pay-opt selected" id="pay-cash" onclick="selectPay('cash')"><svg><use href="#ic-card"/></svg>Наличные</div>
         <div class="pay-opt" id="pay-kaspi-qr" onclick="selectPay('kaspi-qr')"><svg><use href="#ic-card"/></svg>Kaspi QR</div>
@@ -408,7 +413,7 @@ body.tv-open #cartBar{display:none!important}
     <div style="font-family:'Bebas Neue';font-size:34px;letter-spacing:1px;color:var(--gold);margin-top:6px">ЗАКАЗ ПРИНЯТ</div>
     <div style="font-size:14px;color:var(--text2);font-weight:700;text-align:center;line-height:1.6">Спасибо за Ваш заказ в YaYa Chicken.<br>Желаем приятного аппетита.</div>
     <div id="receipt" style="width:100%;background:#fff;border-radius:16px;overflow:hidden;color:#111">
-      <div style="background:var(--gold);padding:16px;text-align:center"><div style="color:#111;font-size:18px;font-weight:900">YaYa Chicken</div><div style="color:#3a3a3a;font-size:12px;font-weight:700">ул. Абая, 49/5 · Экибастуз</div><div style="color:#555;font-size:11px;margin-top:4px" id="receiptDate"></div></div>
+      <div style="background:#F4821F;padding:16px;text-align:center"><div style="color:#fff;font-size:18px;font-weight:900">YaYa Chicken</div><div style="color:rgba(255,255,255,.9);font-size:12px;font-weight:700">ул. Абая, 49/5 · Экибастуз</div><div style="color:rgba(255,255,255,.8);font-size:11px;margin-top:4px" id="receiptDate"></div></div>
       <div style="padding:16px"><div id="receiptItems"></div><div id="receiptTotal"></div><div id="receiptInfo"></div>
         <div style="text-align:center;margin-top:16px;padding-top:12px;border-top:1px dashed #ccc"><div style="font-size:12px;color:#666;font-weight:700;line-height:1.7">Сохраните квитанцию для подтверждения заказа<br>Время доставки: ~45–60 минут<br>Спасибо, что выбрали YaYa Chicken</div></div>
       </div>
@@ -419,7 +424,7 @@ body.tv-open #cartBar{display:none!important}
 
 <!-- ── ЭКРАН: ЗАКАЗЫ ── -->
 <div class="screen" id="screen-orders">
-  <div class="header"><div style="width:60px"></div><div class="h-title">Мои заказы</div><div style="width:60px"></div></div>
+
   <div class="page-pad" id="ordersList"></div>
 </div>
 
@@ -1632,7 +1637,7 @@ function openReceipt(num){
   }
   const rcptThumb=i=>{
     if(i.img) return `<div style="width:46px;height:46px;border-radius:11px;background:url('${escH(i.img)}') center/cover;flex:0 0 auto"></div>`;
-    const ph=i.emoji||(i.name||'?').charAt(0);
+    const ph=(i.name||'?').charAt(0);
     return `<div style="width:46px;height:46px;border-radius:11px;background:#f0f0f0;display:flex;align-items:center;justify-content:center;font-weight:900;font-size:18px;color:#c98700;flex:0 0 auto">${escH(ph)}</div>`;
   };
   const items=(R.items||[]).map(i=>`
@@ -1649,19 +1654,19 @@ function openReceipt(num){
   // текст, иначе на экране виден сырой код. Вырезаем любые теги.
   const payText=String(R.payStr||'').replace(/<[^>]*>/g,'').trim();
   const info=[
-    R.custName?'👤 '+escH(R.custName):'',
-    R.custPhone?'📞 '+escH(R.custPhone):'',
-    R.address?'📍 '+escH(R.address):'',
-    R.comment?'💬 '+escH(R.comment):'',
-    payText?'💳 '+escH(payText):'',
+    R.custName?ic('user')+escH(R.custName):'',
+    R.custPhone?ic('phone')+escH(R.custPhone):'',
+    R.address?ic('pin')+escH(R.address):'',
+    R.comment?ic('chat')+escH(R.comment):'',
+    payText?ic('device')+escH(payText):'',
   ].filter(Boolean).join('<br>');
   modal.innerHTML=`<div class="rcpt-sheet">
     <div class="rcpt-grip"></div>
     <div style="width:100%;background:#fff;border-radius:16px;overflow:hidden;color:#111">
-      <div style="background:var(--gold);padding:16px;text-align:center">
-        <div style="color:#111;font-size:18px;font-weight:900">YaYa Chicken</div>
-        <div style="color:#3a3a3a;font-size:12px;font-weight:700">ул. Абая, 49/5 · Экибастуз</div>
-        <div style="color:#555;font-size:11px;margin-top:4px">№${escH(R.num)} · ${escH(R.dateStr||'')}</div>
+      <div style="background:#F4821F;padding:16px;text-align:center">
+        <div style="color:#fff;font-size:18px;font-weight:900">YaYa Chicken</div>
+        <div style="color:rgba(255,255,255,.9);font-size:12px;font-weight:700">ул. Абая, 49/5 · Экибастуз</div>
+        <div style="color:rgba(255,255,255,.8);font-size:11px;margin-top:4px">№${escH(R.num)} · ${escH(R.dateStr||'')}</div>
       </div>
       <div style="padding:16px">
         <div style="font-size:12px;font-weight:800;color:#8a8a8a;text-transform:uppercase;letter-spacing:.5px;margin-bottom:8px">Состав заказа</div>
