@@ -315,6 +315,31 @@ function confirmOrder() {
 let RECEIPT = null;
 try { RECEIPT = JSON.parse(localStorage.getItem('yaya_last_receipt') || 'null'); } catch (e) {}
 
+// Надёжная запись в localStorage-словарь с ограничением размера и защитой от
+// переполнения: держим последние `cap` записей (по номеру заказа); если места
+// не хватает — режем самые старые и пробуем снова, сохраняя самые свежие.
+// Раньше yaya_order_items рос без предела и при переполнении новые заказы
+// переставали сохранять чек и состав.
+function saveCapped(key, id, value, cap) {
+  var store = {};
+  try { store = JSON.parse(localStorage.getItem(key) || '{}'); } catch (e) { store = {}; }
+  if (typeof store !== 'object' || !store) store = {};
+  store[String(id)] = value;
+  function keep(n) {
+    var ks = Object.keys(store).sort(function (a, b) { return Number(a) - Number(b); });
+    while (ks.length > n) { delete store[ks.shift()]; }
+  }
+  keep(cap);
+  for (var attempt = 0; attempt < 8; attempt++) {
+    try { localStorage.setItem(key, JSON.stringify(store)); return; }
+    catch (e) {
+      var ks = Object.keys(store);
+      if (ks.length <= 1) return;
+      keep(Math.max(1, Math.floor(ks.length / 2)));
+    }
+  }
+}
+
 function snapshotReceipt(orderNum) {
   const items = [];
   for (const [id, qty] of Object.entries(cart)) {
@@ -342,24 +367,13 @@ function snapshotReceipt(orderNum) {
     dateStr: now.toLocaleString('ru', { day:'2-digit', month:'2-digit', year:'numeric', hour:'2-digit', minute:'2-digit' })
   };
   try { localStorage.setItem('yaya_last_receipt', JSON.stringify(R)); } catch (e) {}
-  // Полная квитанция по номеру заказа — чтобы в разделе «Заказы» её можно
-  // было открыть и скачать для любого заказа, а не только последнего.
-  try {
-    if (R.num && R.num !== '—') {
-      const _rc = JSON.parse(localStorage.getItem('yaya_receipts') || '{}');
-      _rc[String(R.num)] = R;
-      // не даём хранилищу разрастаться — держим последние 30 квитанций
-      const keys = Object.keys(_rc);
-      if (keys.length > 30) keys.sort((a,b)=>Number(a)-Number(b)).slice(0, keys.length-30).forEach(k=>delete _rc[k]);
-      localStorage.setItem('yaya_receipts', JSON.stringify(_rc));
-    }
-  } catch (e) {}
-  // Состав для вкладки «Заказы».
-  try {
-    const _store = JSON.parse(localStorage.getItem('yaya_order_items') || '{}');
-    _store[String(R.num)] = { items: R.items, total: R.total, delivery: R.delivery };
-    localStorage.setItem('yaya_order_items', JSON.stringify(_store));
-  } catch (e) {}
+  // Квитанция по номеру + состав для «Заказов». Оба хранилища ограничены
+  // последними 30 и переживают переполнение localStorage (см. saveCapped),
+  // чтобы НОВЫЙ заказ всегда сохранился — при нехватке места режутся старые.
+  if (R.num && R.num !== '—') {
+    saveCapped('yaya_receipts', R.num, R, 30);
+    saveCapped('yaya_order_items', R.num, { items: R.items, total: R.total, delivery: R.delivery }, 30);
+  }
   return R;
 }
 
