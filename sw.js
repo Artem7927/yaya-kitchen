@@ -5,7 +5,7 @@
 // ВАЖНО про обновления: при каждом изменении сайта поднимай номер версии
 // ниже (v2 → v3 → v4 ...). Это заставит браузер выкинуть старый кэш и
 // подтянуть свежие файлы, даже если приложение установлено как PWA.
-const CACHE = 'yaya-v8';
+const CACHE = 'yaya-v9';
 
 self.addEventListener('install', e => {
   self.skipWaiting();
@@ -35,5 +35,32 @@ self.addEventListener('fetch', e => {
       if (cached) return cached;
       throw err;
     }
+  })());
+});
+
+// ── Push-уведомления клиента (статус его заказа) ──────────────────────
+// Сервер шлёт пуш на orders[номер], когда админ меняет статус заказа.
+self.addEventListener('push', e => {
+  let d = {};
+  try { d = e.data ? e.data.json() : {}; }
+  catch (err) { d = { title: 'YaYa Chicken', body: e.data ? e.data.text() : '' }; }
+  const opts = {
+    body: d.body || '',
+    icon: './icon-vitrina-192.png',
+    badge: './icon-vitrina-192.png',
+    tag: d.tag || undefined,
+    renotify: !!d.tag,
+    data: { url: d.url || './' }
+  };
+  e.waitUntil(self.registration.showNotification(d.title || 'YaYa Chicken', opts));
+});
+
+self.addEventListener('notificationclick', e => {
+  e.notification.close();
+  const url = (e.notification.data && e.notification.data.url) || './';
+  e.waitUntil((async () => {
+    const all = await clients.matchAll({ type: 'window', includeUncontrolled: true });
+    for (const c of all) { if ('focus' in c) return c.focus(); }
+    if (clients.openWindow) return clients.openWindow(url);
   })());
 });

@@ -243,6 +243,10 @@ function confirmOrder() {
   btn.disabled = true;
   btn.textContent = 'Отправляем...';
 
+  // Пуш о статусе заказа: разрешение спрашиваем здесь — внутри клика по кнопке
+  // (это «жест пользователя», без него браузер не покажет запрос).
+  try { if (window.yayaPushPrime) window.yayaPushPrime(); } catch (e) {}
+
   const WEBHOOK = 'https://yaya-db-production.up.railway.app/order';
 
   // Сначала получаем порядковый номер заказа с сервера
@@ -282,6 +286,9 @@ function confirmOrder() {
           clearTimeout(timeout);
           console.log('order sent:', r);
           if (r.num) currentOrderNum = r.num;
+          // Привязываем пуш-подписку к номеру заказа — теперь сервер будет
+          // уведомлять клиента при каждой смене статуса этого заказа.
+          try { if (window.yayaPushBindOrder) window.yayaPushBindOrder(currentOrderNum); } catch (e) {}
           // Снимок заказа делаем ДО clearCart — иначе квитанция читает
           // пустую корзину и показывает нули.
           RECEIPT = snapshotReceipt(currentOrderNum);
