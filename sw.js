@@ -5,7 +5,7 @@
 // ВАЖНО про обновления: при каждом изменении сайта поднимай номер версии
 // ниже (v2 → v3 → v4 ...). Это заставит браузер выкинуть старый кэш и
 // подтянуть свежие файлы, даже если приложение установлено как PWA.
-const CACHE = 'yaya-v9';
+const CACHE = 'yaya-v10';
 
 self.addEventListener('install', e => {
   self.skipWaiting();
@@ -59,8 +59,10 @@ self.addEventListener('notificationclick', e => {
   e.notification.close();
   const url = (e.notification.data && e.notification.data.url) || './';
   e.waitUntil((async () => {
+    const scope = self.registration.scope; // напр. https://site/yaya-kitchen/
     const all = await clients.matchAll({ type: 'window', includeUncontrolled: true });
-    for (const c of all) { if ('focus' in c) return c.focus(); }
+    // Фокусим ТОЛЬКО окно этого приложения (витрины), а не кабинет на том же домене.
+    for (const c of all) { if (c.url && c.url.indexOf(scope) === 0 && 'focus' in c) return c.focus(); }
     if (clients.openWindow) return clients.openWindow(url);
   })());
 });
