@@ -232,7 +232,7 @@ function confirmOrder() {
   for (const [id, qty] of Object.entries(cart)) {
     if (qty <= 0) continue;
     const item = findItem(id);
-    if (item) items.push({ name: item.name, price: item.price, qty, desc: item.desc || '' });
+    if (item) items.push({ id, name: item.name, price: item.price, qty, desc: item.desc || '' });
   }
 
   const { total } = getStats();
