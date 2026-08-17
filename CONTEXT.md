@@ -41,4 +41,4 @@ KV-ключи: читает yaya_banners, yaya_tv, yaya_radio, yaya_greetings, y
 - manifest.json подключён в index.html, но файла в репо нет (загрузка вернёт 404).
 - content.json опционален: bootstrap делает fetch('content.json') и при ошибке работает на встроенных данных; в репо файла нет.
 - Запасные данные (меню в menu.js, TV_VIDEOS в index.html) показываются, только пока не пришли KV из кабинета (admin).
-- TODO(owner): manifest.json — где он создаётся/раздаётся, если в репо его нет?
+- manifest.json: ссылка в index.html есть, файла нет, в .gitignore/истории отсутствует — статус открыт (TODO owner).
