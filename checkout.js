@@ -270,6 +270,9 @@ function confirmOrder() {
         // Если заказ для другого — курьер звонит получателю (приоритетнее phone)
         recipient_phone: phone || null,
         order_num:       currentOrderNum,
+        // Источник заказа (?src= / ?utm_source=) — ложится в data заказа
+        // как есть, сервер ничего не трогает.
+        source:          localStorage.getItem('yaya_src') || 'direct',
       };
 
       const controller = new AbortController();
