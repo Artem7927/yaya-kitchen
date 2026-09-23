@@ -353,7 +353,7 @@ function openProduct(id){
      +'<div style="position:absolute;left:0;right:0;top:50%;transform:translateY(-50%);'
      +'text-align:center;font-family:\'Bebas Neue\',sans-serif;font-size:56px;'
      +'letter-spacing:2px;color:rgba(244,180,0,.28)">YaYa</div>'
-     +'<button onclick="closeProduct()" aria-label="Закрыть" style="position:absolute;top:14px;left:14px;'
+     +'<button onclick="closeProduct()" aria-label="Закрыть" style="position:absolute;top:calc(14px + env(safe-area-inset-top,0px));left:14px;'
      +'width:42px;height:42px;border-radius:50%;border:none;background:rgba(0,0,0,.55);color:#fff;'
      +'font-size:20px;line-height:1;cursor:pointer">✕</button>'
      +'<div style="position:absolute;left:0;right:0;bottom:0;height:96px;'
